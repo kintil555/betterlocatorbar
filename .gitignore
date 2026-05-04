@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.class
+
+# Fabric Loom cache
+.loom/
+run/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config overrides
+local.properties

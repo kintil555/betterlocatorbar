@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "betterlocatorbar",
+  "version": "${version}",
+  "name": "Better Locator Bar",
+  "description": "Replaces locator bar dots with player skin heads and adds a player tracker GUI.",
+  "authors": [
+    "YourName"
+  ],
+  "contact": {
+    "homepage": "https://github.com/yourname/better-locator-bar",
+    "sources": "https://github.com/yourname/better-locator-bar",
+    "issues": "https://github.com/yourname/better-locator-bar/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/betterlocatorbar/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.betterlocatorbar.BetterLocatorBar"
+    ],
+    "client": [
+      "com.betterlocatorbar.BetterLocatorBarClient"
+    ]
+  },
+  "mixins": [
+    "betterlocatorbar.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": {}
+}

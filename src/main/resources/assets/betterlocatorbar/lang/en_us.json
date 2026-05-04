@@ -1,0 +1,18 @@
+{
+  "modmenu.nameTranslation.betterlocatorbar": "Better Locator Bar",
+  "modmenu.descriptionTranslation.betterlocatorbar": "Replaces locator bar dots with player skin heads and adds a player tracker GUI.",
+
+  "key.betterlocatorbar.open_tracker": "Open Player Tracker",
+  "category.betterlocatorbar.general": "Better Locator Bar",
+
+  "screen.betterlocatorbar.tracker": "Player Tracker",
+  "gui.betterlocatorbar.search": "Search players...",
+  "gui.betterlocatorbar.search_hint": "Type a player name...",
+
+  "betterlocatorbar.config.show_player_heads": "Show Player Heads",
+  "betterlocatorbar.config.show_name_tags": "Show Name Tags",
+  "betterlocatorbar.config.head_scale": "Head Scale",
+  "betterlocatorbar.config.enable_tracker_gui": "Enable Tracker GUI (Experimental)",
+  "betterlocatorbar.config.show_head_border": "Show Head Border",
+  "betterlocatorbar.config.show_compass_overlay": "Show Compass Overlay"
+}
