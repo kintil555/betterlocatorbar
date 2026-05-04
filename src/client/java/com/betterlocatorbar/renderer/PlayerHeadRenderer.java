@@ -4,7 +4,7 @@ import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.util.SkinTextures;
+import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
