@@ -54,7 +54,7 @@ public class LocatorBarRendererMixin {
         if (mc.getNetworkHandler() == null) return;
 
         ci.cancel();
-        renderHeadBar(context, mc, tickCounter.getTickDelta(false));
+        renderHeadBar(context, mc, tickCounter.getTickProgress(false));
     }
 
     private static void renderHeadBar(DrawContext context, MinecraftClient mc, float tickDelta) {
