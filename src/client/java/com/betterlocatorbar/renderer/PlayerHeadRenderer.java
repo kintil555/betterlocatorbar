@@ -4,8 +4,7 @@ import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.util.SkinTextures;
+import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Identifier;
 
 import java.util.Optional;
@@ -75,18 +74,16 @@ public class PlayerHeadRenderer {
                                         int srcX, int srcY, int srcW, int srcH,
                                         int textureW, int textureH,
                                         float alpha) {
-        // Convert alpha 0-1 to 0-255 for ARGB
-        int a = Math.clamp((int) (alpha * 255f), 0, 255);
-        int color = (a << 24) | 0xFFFFFF;
+        float u0 = (float) srcX / textureW;
+        float v0 = (float) srcY / textureH;
+        float u1 = (float) (srcX + srcW) / textureW;
+        float v1 = (float) (srcY + srcH) / textureH;
 
-        context.drawTexture(
-                RenderLayer::getGuiTexturedOverlapping,
+        context.drawTexturedQuad(
                 texture,
                 dstX, dstY,
                 dstX + dstW, dstY + dstH,
-                srcX, srcY,
-                srcW, srcH,
-                textureW, textureH
+                u0, u1, v0, v1
         );
     }
 

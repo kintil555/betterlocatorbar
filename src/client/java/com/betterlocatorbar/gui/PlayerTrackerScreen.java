@@ -8,8 +8,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.input.CharInput;
-import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.text.Text;
 
@@ -329,22 +327,6 @@ public class PlayerTrackerScreen extends Screen {
         int maxScroll  = Math.max(0, filteredPlayers.size() - maxVisible);
         scrollOffset   = Math.clamp((int) (scrollOffset - verticalAmount), 0, maxScroll);
         return true;
-    }
-
-    @Override
-    public boolean keyPressed(KeyInput input) {
-        if (searchField.isFocused()) {
-            return searchField.keyPressed(input);
-        }
-        return super.keyPressed(input);
-    }
-
-    @Override
-    public boolean charTyped(CharInput input) {
-        if (searchField.isFocused()) {
-            return searchField.charTyped(input);
-        }
-        return super.charTyped(input);
     }
 
     @Override
