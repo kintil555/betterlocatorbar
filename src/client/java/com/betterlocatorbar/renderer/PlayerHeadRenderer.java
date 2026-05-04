@@ -4,6 +4,7 @@ import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.util.SkinTextures;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
@@ -84,9 +85,9 @@ public class PlayerHeadRenderer {
         if (entry == null) return;
 
         // Use var to avoid import dependency on SkinTextures/PlayerSkin class name across versions
-        // In Yarn 1.21.11+build.4 the record component was renamed from texture -> skinTexture
+        // SkinTextures record accessor in Yarn 1.21.11: skin.texture()
         var skin = entry.getSkinTextures();
-        Identifier skinId = skin.skinTexture();
+        Identifier skinId = skin.texture();
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {
