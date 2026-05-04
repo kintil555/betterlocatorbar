@@ -69,7 +69,7 @@ public abstract class InGameHudMixin {
                 .getPlayerList()
                 .stream()
                 .filter(e -> e.getProfile() != null
-                        && !e.getProfile().getId().equals(localPlayer.getUuid()))
+                        && !e.getProfile().id().equals(localPlayer.getUuid()))
                 .toList();
 
         if (trackedPlayers.isEmpty()) return;

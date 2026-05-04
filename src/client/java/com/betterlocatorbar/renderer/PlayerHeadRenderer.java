@@ -1,12 +1,10 @@
 package com.betterlocatorbar.renderer;
 
 import com.betterlocatorbar.config.BLBConfig;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.texture.PlayerSkinProvider;
 import net.minecraft.client.util.SkinTextures;
 import net.minecraft.util.Identifier;
 
@@ -81,16 +79,8 @@ public class PlayerHeadRenderer {
         int a = Math.clamp((int) (alpha * 255f), 0, 255);
         int color = (a << 24) | 0xFFFFFF;
 
-        // Compute normalised UV coords
-        float u0 = (float) srcX / textureW;
-        float v0 = (float) srcY / textureH;
-        float u1 = (float) (srcX + srcW) / textureW;
-        float v1 = (float) (srcY + srcH) / textureH;
-
-        // Use the high-level blit that handles UV mapping properly
-        RenderSystem.setShaderTexture(0, texture);
         context.drawTexture(
-                RenderLayer::getGuiTextured,
+                RenderLayer::getGuiTexturedOverlapping,
                 texture,
                 dstX, dstY,
                 dstX + dstW, dstY + dstH,
@@ -109,7 +99,7 @@ public class PlayerHeadRenderer {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.textRenderer == null) return;
 
-        String name = entry.getProfile().getName();
+        String name = entry.getProfile().name();
         int nameWidth = mc.textRenderer.getWidth(name);
         int nameX = centerX - nameWidth / 2;
         // Draw with drop shadow at 75% opacity (white with alpha)

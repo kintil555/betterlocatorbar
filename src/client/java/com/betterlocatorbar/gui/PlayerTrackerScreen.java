@@ -8,6 +8,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
+import net.minecraft.client.input.CharInput;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.text.Text;
 
@@ -89,7 +91,7 @@ public class PlayerTrackerScreen extends Screen {
                 16,
                 Text.translatable("gui.betterlocatorbar.search")
         );
-        searchField.setPlaceholderText(Text.translatable("gui.betterlocatorbar.search_hint"));
+        searchField.setSuggestion(Text.translatable("gui.betterlocatorbar.search_hint").getString());
         searchField.setChangedListener(query -> {
             scrollOffset = 0;
             applyFilter(query);
@@ -104,7 +106,6 @@ public class PlayerTrackerScreen extends Screen {
     @Override
     public void tick() {
         super.tick();
-        searchField.tick();
 
         // Periodically refresh player data
         lastRefreshTick++;
@@ -126,10 +127,10 @@ public class PlayerTrackerScreen extends Screen {
                     .stream()
                     .filter(e -> e.getProfile() != null
                             && (mc.player == null
-                            || !e.getProfile().getId().equals(mc.player.getUuid())))
+                            || !e.getProfile().id().equals(mc.player.getUuid())))
                     .map(e -> new TrackedPlayerData(
-                            e.getProfile().getId(),
-                            e.getProfile().getName(),
+                            e.getProfile().id(),
+                            e.getProfile().name(),
                             0, 0, 0,   // coords unknown without server mod
                             "minecraft:overworld",
                             true
@@ -331,19 +332,19 @@ public class PlayerTrackerScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyInput input) {
         if (searchField.isFocused()) {
-            return searchField.keyPressed(keyCode, scanCode, modifiers);
+            return searchField.keyPressed(input);
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(input);
     }
 
     @Override
-    public boolean charTyped(char chr, int modifiers) {
+    public boolean charTyped(CharInput input) {
         if (searchField.isFocused()) {
-            return searchField.charTyped(chr, modifiers);
+            return searchField.charTyped(input);
         }
-        return super.charTyped(chr, modifiers);
+        return super.charTyped(input);
     }
 
     @Override

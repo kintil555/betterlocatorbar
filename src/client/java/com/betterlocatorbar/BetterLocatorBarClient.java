@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +21,8 @@ public class BetterLocatorBarClient implements ClientModInitializer {
 
     /** Keybind to open the Player Tracker GUI (default: B) */
     private static KeyBinding openTrackerKey;
+    private static final KeyBinding.Category TRACKER_CATEGORY =
+            KeyBinding.Category.create(Identifier.of("betterlocatorbar", "general"));
 
     @Override
     public void onInitializeClient() {
@@ -37,7 +40,7 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 "key.betterlocatorbar.open_tracker",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_B,
-                "category.betterlocatorbar.general"
+                TRACKER_CATEGORY
         ));
 
         // Check keybind every tick
