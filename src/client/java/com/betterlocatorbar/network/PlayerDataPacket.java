@@ -69,8 +69,11 @@ public class PlayerDataPacket {
         });
     }
 
-    /** Send a request from client to server asking for player positions */
+    /** Send a request from client to server asking for player positions.
+     *  Only sends if the server has the mod installed (canSend guard). */
     public static void sendRequest() {
-        ClientPlayNetworking.send(new RequestPayload());
+        if (ClientPlayNetworking.canSend(RequestPayload.ID)) {
+            ClientPlayNetworking.send(new RequestPayload());
+        }
     }
 }
