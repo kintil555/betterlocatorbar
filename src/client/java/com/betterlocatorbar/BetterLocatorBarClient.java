@@ -125,24 +125,36 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 double targetX, targetZ, targetY;
 
                 AbstractClientPlayerEntity liveEntity = liveEntities.get(uuid);
-                if (liveEntity != null) {
+
+                // ── Source priority: live entity → server packet → skip ────────
+                // Bug fix: vanilla client entity list drops players ~64–72 blocks away.
+                // We prefer server-broadcast coords (TrackerDataStore) when available,
+                // falling back to live entity only when server data is absent.
+                // This mirrors how vanilla LocatorBar works — it uses server-side data,
+                // not the local entity list, so range is unlimited.
+                TrackedPlayerData serverData = serverMap.get(uuid);
+
+                if (serverData != null && serverData.isOnline() && serverData.dimension().equals(localDim)) {
+                    // Server data is authoritative — always use it (works at any distance)
+                    targetX = serverData.x();
+                    targetY = serverData.y();
+                    targetZ = serverData.z();
+                    // Sync live entity position for sneak detection if available
+                    if (liveEntity != null) {
+                        targetX = liveEntity.getX();
+                        targetY = liveEntity.getY();
+                        targetZ = liveEntity.getZ();
+                    }
+                } else if (liveEntity != null) {
+                    // Fallback: no server data, use live entity
                     targetX = liveEntity.getX();
                     targetY = liveEntity.getY();
                     targetZ = liveEntity.getZ();
                 } else {
-                    TrackedPlayerData data = serverMap.get(uuid);
-                    if (data == null || !data.isOnline()) continue;
-                    if (!data.dimension().equals(localDim)) continue;
-                    targetX = data.x();
-                    targetY = data.y();
-                    targetZ = data.z();
+                    continue; // no data at all
                 }
 
                 // ── Sneak / Invisible detection ───────────────────────────────
-                // Vanilla hides invisible players from the client entity list entirely.
-                // So if a player is in the tab list (entryMap) but NOT in liveEntities,
-                // they are either invisible or out of render range.
-                // If they ARE in liveEntities, check isSneaking() or isInvisible() directly.
                 boolean isGhost = false;
                 if (liveEntity != null) {
                     isGhost = liveEntity.isSneaking() || liveEntity.isInvisible();
@@ -152,7 +164,6 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                     // Use frozen position if we have one, else store current
                     double[] frozen = frozenPos.get(uuid);
                     if (frozen == null) {
-                        // First tick becoming ghost — freeze at current pos
                         frozenPos.put(uuid, new double[]{targetX, targetY, targetZ});
                         frozen = frozenPos.get(uuid);
                     }
@@ -160,7 +171,6 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                     targetY = frozen[1];
                     targetZ = frozen[2];
                 } else {
-                    // Not a ghost — clear frozen pos
                     frozenPos.remove(uuid);
                 }
 
@@ -194,28 +204,26 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 int iconSize = Math.max((int) MIN_SIZE, Math.round(MAX_SIZE * scaleFactor));
                 int iconX = Math.clamp(dotCenterX - iconSize / 2, barStartX, barStartX + BAR_WIDTH - iconSize);
 
-                // ── Pitch-based bounce (arrow indicator) ─────────────────────
-                // Camera pitch: negative = looking up, positive = looking down.
-                // We compare camera pitch against the angle to the target.
-                // If target is above camera sight line → icon bounces UP (arrow up).
-                // If target is below camera sight line → icon bounces DOWN (arrow down).
-                // More sensitive: trigger at 5° pitch difference, max bounce 2px.
-                double dist2DForPitch = Math.sqrt(dx * dx + dz * dz);
-                float cameraPitch = localPlayer.getLerpedPitch(tickDelta);
-                // Angle to target: positive = target below horizontal, negative = above
-                float pitchToTarget = dist2DForPitch > 0.5
-                        ? (float) Math.toDegrees(Math.atan2(localY - targetY, dist2DForPitch))
-                        : 0f; // flat
-                // Difference: how much camera pitch deviates from direction to target
-                float pitchDiff = cameraPitch - pitchToTarget;
+                // ── Vertical-based bounce (arrow indicator) ───────────────────
+                // Bounce triggers when target's height differs from local player by >=30%
+                // of the estimated vertical view frustum at that distance.
+                // This avoids over-sensitivity from slight pitch differences on flat terrain.
+                // Minimum 5 block absolute height difference required (noise filter).
+                double dist2DForBounce = Math.sqrt(dx * dx + dz * dz);
+                double dy = targetY - localY;
+                // Approx vertical FOV half-tan: Minecraft default ~70 deg VFOV -> half=35 deg -> tan~0.70
+                double vertFovHalfTan = 0.70;
+                double verticalFraction = (dist2DForBounce > 1.0)
+                        ? Math.abs(dy) / (dist2DForBounce * vertFovHalfTan)
+                        : 0.0;
 
                 int newSign;
-                if (pitchDiff < -5f) {
-                    newSign = -1; // looking more up than target → target is above → bounce up
-                } else if (pitchDiff > 5f) {
-                    newSign = 1;  // looking more down than target → target is below → bounce down
+                if (verticalFraction >= 0.30 && dy > 5.0) {
+                    newSign = -1; // target significantly above -> bounce up
+                } else if (verticalFraction >= 0.30 && dy < -5.0) {
+                    newSign = 1;  // target significantly below -> bounce down
                 } else {
-                    newSign = 0;
+                    newSign = 0;  // close enough in height -> no bounce
                 }
 
                 // Update bounce sign if changed
@@ -237,7 +245,8 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 if (entry == null) continue;
 
                 // ── Alpha ─────────────────────────────────────────────────────
-                float alpha = isGhost ? 0.5f : (PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f);
+                // Ghost (sneaking/invisible): 10% opacity — just a faint hint of position
+                float alpha = isGhost ? 0.10f : (PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f);
 
                 PlayerHeadRenderer.drawPlayerHead(drawContext, entry, iconX, headY, iconSize, alpha);
 

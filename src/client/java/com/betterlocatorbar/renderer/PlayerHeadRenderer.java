@@ -71,9 +71,8 @@ public class PlayerHeadRenderer {
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {
-            int borderAlpha = (int) (alpha * 180f) << 24; // slightly transparent outline
+            int borderAlpha = (int) (alpha * 180f) << 24;
             int borderColor = (cfg.headBorderColor & 0x00FFFFFF) | borderAlpha;
-            // Draw 1px outline — top, bottom, left, right lines only
             context.fill(x,     y - 1, x + size, y,          borderColor); // top
             context.fill(x,     y + size, x + size, y + size + 1, borderColor); // bottom
             context.fill(x - 1, y,     x,          y + size, borderColor); // left
@@ -81,20 +80,25 @@ public class PlayerHeadRenderer {
         }
 
         drawSkinRegion(context, skinId, x, y, size, size,
-                SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
+                SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64, alpha);
         drawSkinRegion(context, skinId, x, y, size, size,
-                SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
+                SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64, alpha);
     }
 
     private static void drawSkinRegion(DrawContext context, Identifier texture,
                                         int dstX, int dstY, int dstW, int dstH,
                                         int srcX, int srcY, int srcW, int srcH,
-                                        int texW, int texH) {
+                                        int texW, int texH, float alpha) {
         float u1 = (float) srcX / texW;
         float u2 = (float) (srcX + srcW) / texW;
         float v1 = (float) srcY / texH;
         float v2 = (float) (srcY + srcH) / texH;
-        context.drawTexturedQuad(texture, dstX, dstY, dstX + dstW, dstY + dstH, u1, u2, v1, v2);
+        // Encode alpha into ARGB color multiplier passed to drawTexturedQuad
+        // drawTexturedQuad(texture, x1, y1, x2, y2, z, u1, u2, v1, v2, color)
+        // color format: ARGB — 0xAARRGGBB where AA=alpha, RR=GG=BB=FF for no tint
+        int alphaInt = (int) (alpha * 255f) & 0xFF;
+        int color = (alphaInt << 24) | 0x00FFFFFF;
+        context.drawTexturedQuad(texture, dstX, dstY, dstX + dstW, dstY + dstH, 0, u1, u2, v1, v2, color);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
