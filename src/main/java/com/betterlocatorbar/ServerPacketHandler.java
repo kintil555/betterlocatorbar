@@ -96,7 +96,7 @@ public class ServerPacketHandler {
                     for (ServerPlayerEntity p : context.server().getPlayerManager().getPlayerList()) {
                         if (p.getUuid().equals(requester.getUuid())) continue; // skip self
 
-                        String dimKey = p.getServerWorld().getRegistryKey().getValue().toString();
+                        String dimKey = ((net.minecraft.server.world.ServerWorld) p.getWorld()).getRegistryKey().getValue().toString();
                         entries.add(new PlayerEntry(
                                 p.getUuid(),
                                 p.getName().getString(),
