@@ -4,17 +4,15 @@ import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.util.SkinTextures;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
 
 /**
  * Renders a player's skin face in the locator bar.
- *
- * SkinTextures class moved packages in 1.21.x — we avoid importing it entirely
- * by using `var` (type inference) and accessing the texture() record component
- * reflectively only as fallback. Primary path: var skinTextures = entry.getSkinTextures()
- * compiles fine since Java infers the type, no import needed.
+ * Uses SkinTextures API (net.minecraft.client.util.SkinTextures) to resolve
+ * the player's actual skin texture from their PlayerListEntry.
  */
 public class PlayerHeadRenderer {
 
@@ -56,32 +54,9 @@ public class PlayerHeadRenderer {
     // ─── Skin identifier resolution ───────────────────────────────────────────
 
     private static Identifier resolveSkinId(PlayerListEntry entry) {
-        try {
-            // Use `var` so Java infers SkinTextures type — no import needed.
-            // getSkinTextures() exists in PlayerListEntry per Yarn 1.21.11 docs.
-            var skinTextures = entry.getSkinTextures();
-            if (skinTextures == null) return DEFAULT_SKIN;
-
-            // SkinTextures is a record with first component `texture` (Identifier).
-            // Call texture() accessor — if it exists, great. Otherwise reflect.
-            try {
-                var method = skinTextures.getClass().getMethod("texture");
-                Object result = method.invoke(skinTextures);
-                if (result instanceof Identifier id) return id;
-            } catch (NoSuchMethodException ignored) {
-                // Try alternative accessor names
-                for (String name : new String[]{"getSkin", "getTexture", "skin", "id"}) {
-                    try {
-                        var m = skinTextures.getClass().getMethod(name);
-                        Object r = m.invoke(skinTextures);
-                        if (r instanceof Identifier id) return id;
-                    } catch (Exception ignored2) {}
-                }
-            }
-        } catch (Exception e) {
-            // getSkinTextures() not available — fall through
-        }
-        return DEFAULT_SKIN;
+        SkinTextures skinTextures = entry.getSkinTextures();
+        Identifier texture = skinTextures.texture();
+        return texture != null ? texture : DEFAULT_SKIN;
     }
 
     // ─── Head rendering ───────────────────────────────────────────────────────
