@@ -26,39 +26,33 @@ public class BetterLocatorBarClient implements ClientModInitializer {
 
     private static KeyBinding openTrackerKey;
 
-    /**
-     * Tracks whether the mixin successfully cancelled vanilla rendering this frame.
-     * If true, HudRenderCallback skips drawing (mixin already handled it).
-     * If false (mixin method didn't match), HudRenderCallback draws as fallback.
-     */
-    public static boolean mixinCancelledThisFrame = false;
-
     @Override
     public void onInitializeClient() {
         LOGGER.info("[BetterLocatorBar] Initializing...");
 
         BLBConfig.load();
-        PlayerDataPacket.registerC2S();
+
+        // Only register S2C receiver — C2S payload type is registered server-side
         PlayerDataPacket.registerS2C();
 
-        // Keybind: open tracker GUI
+        // KeyBinding in 1.21.9+ requires KeyBinding.Category instead of String
+        KeyBinding.Category category = new KeyBinding.Category("category.betterlocatorbar.general");
         openTrackerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.betterlocatorbar.open_tracker",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_B,
-                "category.betterlocatorbar.general"
+                category
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            mixinCancelledThisFrame = false; // reset each tick
             if (openTrackerKey.wasPressed() && client.player != null) {
                 client.setScreen(new PlayerTrackerScreen());
             }
         });
 
-        // HudRenderCallback: draws heads AFTER all HUD elements are rendered.
-        // This is a FALLBACK in case the mixin cancel didn't hook the right method.
-        // When the mixin works correctly, we skip this (to avoid double drawing).
+        // HudRenderCallback: draw heads at correct XP bar position.
+        // Acts as the primary render since mixin cancel may or may not hook
+        // depending on exact Yarn method name at runtime.
         HudRenderCallback.EVENT.register((drawContext, tickCounter) -> {
             if (!BLBConfig.get().showPlayerHeads) return;
 
@@ -84,7 +78,8 @@ public class BetterLocatorBarClient implements ClientModInitializer {
             float headScale = BLBConfig.get().headScale;
             int headSize = Math.max(8, (int) (9 * headScale));
 
-            // XP bar: 182px wide, centered, vertically at screenH-32 to screenH-27
+            // XP bar: 182px wide, centered, top at screenH-32, bottom at screenH-27.
+            // Center Y = screenH-29. Place heads centered on bar vertically.
             int barCenterY = screenH - 29;
             int headY = barCenterY - headSize / 2;
             int barWidth = 182;
