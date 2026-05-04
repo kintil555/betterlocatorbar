@@ -30,10 +30,23 @@ public class BetterLocatorBarClient implements ClientModInitializer {
 
     private static KeyBinding openTrackerKey;
 
-    // Vanilla locator bar constants
     private static final float BAR_FOV_DEGREES = 60.0f;
     private static final int BAR_WIDTH = 182;
     private static final int HEAD_SIZE = 7;
+
+    // Threshold Y difference (blocks) before head starts bouncing
+    private static final float BOUNCE_THRESHOLD_Y = 5.0f;
+
+    // Bounce state per player UUID: current bounce offset in pixels (float for smooth)
+    private static final Map<UUID, Float> bounceOffset = new HashMap<>();
+    // Direction: +1 = moving toward peak, -1 = moving back to center
+    private static final Map<UUID, Integer> bounceDir = new HashMap<>();
+    // Which way to bounce: -1 = up (negative Y in screen), +1 = down
+    private static final Map<UUID, Integer> bounceSign = new HashMap<>();
+
+    // Bounce speed in pixels per tick, max offset = 1px
+    private static final float BOUNCE_SPEED = 0.08f;
+    private static final float BOUNCE_MAX = 1.0f;
 
     @Override
     public void onInitializeClient() {
@@ -56,23 +69,20 @@ public class BetterLocatorBarClient implements ClientModInitializer {
             if (openTrackerKey.wasPressed() && client.player != null) {
                 client.setScreen(new PlayerTrackerScreen());
             }
+            // Advance bounce animation each tick
+            tickBounceAnimations(client);
         });
 
-        // Head rendering via HudRenderCallback — always fires, independent of mixin.
-        // Mixin only cancels vanilla dot/arrow; this draws our heads on top.
         HudRenderCallback.EVENT.register((drawContext, tickCounter) -> {
             if (!BLBConfig.get().showPlayerHeads) return;
 
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc == null || mc.world == null || mc.player == null) return;
             if (mc.getNetworkHandler() == null) return;
-
-            // Only render when locator bar would normally show (no screen open)
             if (mc.currentScreen != null) return;
 
             ClientPlayerEntity localPlayer = mc.player;
 
-            // Build UUID -> PlayerListEntry map for skins
             Map<UUID, PlayerListEntry> entryMap = new HashMap<>();
             for (PlayerListEntry e : mc.getNetworkHandler().getPlayerList()) {
                 if (e.getProfile() != null && e.getProfile().id() != null) {
@@ -80,7 +90,6 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 }
             }
 
-            // Live entities in render distance (most accurate positions)
             Map<UUID, AbstractClientPlayerEntity> liveEntities = new HashMap<>();
             for (AbstractClientPlayerEntity entity : mc.world.getPlayers()) {
                 if (!entity.getUuid().equals(localPlayer.getUuid())) {
@@ -88,13 +97,11 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 }
             }
 
-            // Server data for players outside render distance
             Map<UUID, TrackedPlayerData> serverMap = new HashMap<>();
             for (TrackedPlayerData d : TrackerDataStore.getPlayers()) {
                 serverMap.put(d.uuid(), d);
             }
 
-            // Union of all candidates
             Set<UUID> candidates = new HashSet<>(liveEntities.keySet());
             for (TrackedPlayerData d : serverMap.values()) {
                 if (d.isOnline() && !d.uuid().equals(localPlayer.getUuid())) {
@@ -107,44 +114,67 @@ public class BetterLocatorBarClient implements ClientModInitializer {
             int screenW = mc.getWindow().getScaledWidth();
             int screenH = mc.getWindow().getScaledHeight();
             int barStartX = (screenW - BAR_WIDTH) / 2;
-
-            // Bar.VERTICAL_OFFSET = 32, bar height = 5px
-            // Bar center Y = screenH - 32 + 2 = screenH - 30
             int barCenterY = screenH - 30;
-            int headY = barCenterY - HEAD_SIZE / 2;
+            int baseHeadY = barCenterY - HEAD_SIZE / 2;
 
             float tickDelta = tickCounter.getTickProgress(false);
             float cameraYaw = localPlayer.getLerpedYaw(tickDelta);
+            double localY = localPlayer.getY();
             String localDim = mc.world.getRegistryKey().getValue().toString();
 
             for (UUID uuid : candidates) {
-                double targetX, targetZ;
+                double targetX, targetZ, targetY;
 
                 AbstractClientPlayerEntity liveEntity = liveEntities.get(uuid);
                 if (liveEntity != null) {
                     targetX = liveEntity.getX();
+                    targetY = liveEntity.getY();
                     targetZ = liveEntity.getZ();
                 } else {
                     TrackedPlayerData data = serverMap.get(uuid);
                     if (data == null || !data.isOnline()) continue;
                     if (!data.dimension().equals(localDim)) continue;
                     targetX = data.x();
+                    targetY = data.y();
                     targetZ = data.z();
                 }
 
                 double dx = targetX - localPlayer.getX();
                 double dz = targetZ - localPlayer.getZ();
-
-                // Bearing: MC yaw convention south=0, west=90
                 float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
                 float yawDelta = MathHelper.wrapDegrees(targetYaw - cameraYaw);
 
                 if (yawDelta < -BAR_FOV_DEGREES || yawDelta > BAR_FOV_DEGREES) continue;
 
-                // Map [-60..+60] to bar X position
                 float normalized = (yawDelta + BAR_FOV_DEGREES) / (BAR_FOV_DEGREES * 2.0f);
                 int dotCenterX = barStartX + Math.round(normalized * BAR_WIDTH);
                 int iconX = Math.clamp(dotCenterX - HEAD_SIZE / 2, barStartX, barStartX + BAR_WIDTH - HEAD_SIZE);
+
+                // Determine bounce direction based on Y difference
+                double yDiff = targetY - localY;
+                int newSign;
+                if (yDiff > BOUNCE_THRESHOLD_Y) {
+                    newSign = -1; // target above → head bounces up (screen up = negative Y)
+                } else if (yDiff < -BOUNCE_THRESHOLD_Y) {
+                    newSign = 1;  // target below → head bounces down
+                } else {
+                    newSign = 0;  // same level → no bounce
+                }
+
+                // Update bounce sign if changed
+                int currentSign = bounceSign.getOrDefault(uuid, 0);
+                if (newSign != currentSign) {
+                    bounceSign.put(uuid, newSign);
+                    bounceOffset.put(uuid, 0f);
+                    bounceDir.put(uuid, 1);
+                }
+
+                // Apply bounce offset to Y
+                int pixelOffset = newSign != 0
+                        ? Math.round(bounceOffset.getOrDefault(uuid, 0f) * newSign)
+                        : 0;
+
+                int headY = baseHeadY + pixelOffset;
 
                 PlayerListEntry entry = entryMap.get(uuid);
                 if (entry == null) continue;
@@ -161,6 +191,36 @@ public class BetterLocatorBarClient implements ClientModInitializer {
         });
 
         LOGGER.info("[BetterLocatorBar] Initialized!");
+    }
+
+    private static void tickBounceAnimations(MinecraftClient client) {
+        if (client.player == null) return;
+
+        for (UUID uuid : new HashSet<>(bounceOffset.keySet())) {
+            int sign = bounceSign.getOrDefault(uuid, 0);
+            if (sign == 0) {
+                // No bounce needed, reset to 0
+                bounceOffset.put(uuid, 0f);
+                continue;
+            }
+
+            float offset = bounceOffset.getOrDefault(uuid, 0f);
+            int dir = bounceDir.getOrDefault(uuid, 1);
+
+            // Move offset toward peak or back to 0
+            offset += BOUNCE_SPEED * dir;
+
+            if (offset >= BOUNCE_MAX) {
+                offset = BOUNCE_MAX;
+                dir = -1; // reverse: go back to 0
+            } else if (offset <= 0f) {
+                offset = 0f;
+                dir = 1; // reverse: go to peak again
+            }
+
+            bounceOffset.put(uuid, offset);
+            bounceDir.put(uuid, dir);
+        }
     }
 
     public static KeyBinding getOpenTrackerKey() {
