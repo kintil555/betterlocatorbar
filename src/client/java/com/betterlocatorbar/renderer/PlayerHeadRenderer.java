@@ -85,9 +85,8 @@ public class PlayerHeadRenderer {
 
         // Use var to avoid import dependency on SkinTextures/PlayerSkin class name across versions
         var skin = entry.getSkinTextures();
-        // yarn 1.21.11: SkinTextures moved to net.minecraft.entity.player,
-        // skin texture field renamed from texture() to body().id()
-        Identifier skinId = skin.body().id();
+        // SkinTextures.texture() returns the Identifier directly
+        Identifier skinId = skin.texture();
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {

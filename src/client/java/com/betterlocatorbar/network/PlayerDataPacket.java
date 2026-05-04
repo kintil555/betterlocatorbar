@@ -1,31 +1,34 @@
 package com.betterlocatorbar.network;
 
+import com.betterlocatorbar.ServerPacketHandler;
 import com.betterlocatorbar.util.TrackedPlayerData;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.codec.PacketCodecs;
 import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.util.Identifier;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Handles client↔server communication for the Player Tracker GUI.
  *
  * <p>The client sends {@link RequestPayload} to ask the server for
  * a fresh list of player positions. The server replies with
- * {@link ResponsePayload} containing {@link TrackedPlayerData} entries.</p>
+ * {@link ServerPacketHandler.ResponsePayload} containing {@link ServerPacketHandler.PlayerEntry}
+ * entries, which are then converted to {@link TrackedPlayerData} and stored.</p>
+ *
+ * <p><b>IMPORTANT:</b> We must NOT define a separate ResponsePayload here.
+ * The server registers {@code betterlocatorbar:response_player_data} with its own
+ * codec via {@link ServerPacketHandler}. Registering a second payload with the same
+ * channel ID causes a codec mismatch → Network Protocol Error → client disconnect.</p>
  */
 public class PlayerDataPacket {
 
     // ─── Packet IDs ──────────────────────────────────────────────────────────
     public static final Identifier REQUEST_ID =
             Identifier.of("betterlocatorbar", "request_player_data");
-    public static final Identifier RESPONSE_ID =
-            Identifier.of("betterlocatorbar", "response_player_data");
 
     // ─── Request (Client → Server) ────────────────────────────────────────────
     public record RequestPayload() implements CustomPayload {
@@ -39,34 +42,29 @@ public class PlayerDataPacket {
         }
     }
 
-    // ─── Response (Server → Client) ──────────────────────────────────────────
-    public record ResponsePayload(List<TrackedPlayerData> players) implements CustomPayload {
-        public static final Id<ResponsePayload> ID = new Id<>(RESPONSE_ID);
-
-        public static final PacketCodec<RegistryByteBuf, ResponsePayload> CODEC =
-                PacketCodec.tuple(
-                        PacketCodecs.collection(ArrayList::new, TrackedPlayerData.PACKET_CODEC),
-                        ResponsePayload::players,
-                        ResponsePayload::new
-                );
-
-        @Override
-        public Id<? extends CustomPayload> getId() {
-            return ID;
-        }
-    }
-
     // ─── Registration ─────────────────────────────────────────────────────────
     // NOTE: PayloadTypeRegistry (C2S + S2C) is handled in ServerPacketHandler (common init).
-    // This method only registers the client-side receiver.
+    // This method only registers the client-side receiver for the server's ResponsePayload.
 
     public static void registerS2C() {
-        // Handle response on the client side — store data in TrackerDataStore
-        ClientPlayNetworking.registerGlobalReceiver(ResponsePayload.ID, (payload, context) -> {
-            context.client().execute(() ->
-                    TrackerDataStore.update(payload.players())
-            );
-        });
+        // Receive ServerPacketHandler.ResponsePayload (which contains PlayerEntry list),
+        // convert each entry to TrackedPlayerData, then store in TrackerDataStore.
+        ClientPlayNetworking.registerGlobalReceiver(
+                ServerPacketHandler.ResponsePayload.ID,
+                (payload, context) -> {
+                    List<TrackedPlayerData> converted = payload.entries().stream()
+                            .map(e -> new TrackedPlayerData(
+                                    e.uuid(),
+                                    e.name(),
+                                    e.x(),
+                                    e.y(),
+                                    e.z(),
+                                    e.dim(),
+                                    e.online()
+                            ))
+                            .collect(Collectors.toList());
+                    context.client().execute(() -> TrackerDataStore.update(converted));
+                });
     }
 
     /** Send a request from client to server asking for player positions.
