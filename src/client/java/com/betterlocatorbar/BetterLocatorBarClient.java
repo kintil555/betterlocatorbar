@@ -35,11 +35,14 @@ public class BetterLocatorBarClient implements ClientModInitializer {
         // Only register S2C receiver — C2S payload type is registered server-side
         PlayerDataPacket.registerS2C();
 
+        KeyBinding.Category category = KeyBinding.Category.create(
+                net.minecraft.util.Identifier.of("betterlocatorbar", "general")
+        );
         openTrackerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.betterlocatorbar.open_tracker",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_B,
-                "category.betterlocatorbar.general"
+                category
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
