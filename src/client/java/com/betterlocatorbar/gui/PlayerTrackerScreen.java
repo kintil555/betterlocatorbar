@@ -332,10 +332,13 @@ public class PlayerTrackerScreen extends Screen {
         context.fill(headX + HEAD_SIZE - 5, headY + HEAD_SIZE - 5,
                 headX + HEAD_SIZE, headY + HEAD_SIZE, dotColor);
 
-        // Player name
+        // Player name + platform badge (Java vs Bedrock/Geyser)
         int textX = headX + HEAD_SIZE + 6;
         int nameY  = y + 5;
-        context.drawTextWithShadow(textRenderer, player.name(), textX, nameY, COLOR_TEXT);
+        boolean isBedrock = entry != null && com.betterlocatorbar.renderer.PlayerHeadRenderer.isBedrockPlayer(entry);
+        String platformBadge = isBedrock ? "§7[BE] §r" : "§a[JE] §r";
+        String displayName   = platformBadge + player.name();
+        context.drawTextWithShadow(textRenderer, displayName, textX, nameY, COLOR_TEXT);
 
         // Coordinates — only real if data came from the server-side companion mod.
         // TrackerDataStore entries always have real coords; network-fallback entries
