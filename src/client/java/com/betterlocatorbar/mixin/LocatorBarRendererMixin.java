@@ -90,7 +90,7 @@ public class LocatorBarRendererMixin {
 
         for (TrackedPlayerData data : trackedData) {
             // Only same dimension
-            String localDim = localPlayer.getWorld().getRegistryKey().getValue().toString();
+            String localDim = mc.world.getRegistryKey().getValue().toString();
             if (!data.dimension().equals(localDim)) continue;
 
             // Calculate horizontal bearing from local player to target
