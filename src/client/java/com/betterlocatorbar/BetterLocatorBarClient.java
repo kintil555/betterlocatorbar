@@ -183,9 +183,14 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 PlayerHeadRenderer.drawPlayerHead(drawContext, entry, iconX, headY, HEAD_SIZE, alpha);
 
                 if (BLBConfig.get().showNameTag) {
-                    String badge = PlayerHeadRenderer.isBedrockPlayer(entry) ? "§7[BE]" : "";
-                    PlayerHeadRenderer.drawPlayerName(
-                            drawContext, entry, iconX + HEAD_SIZE / 2, headY + HEAD_SIZE, badge);
+                    // Name tag is shown only when the target player is sneaking/crouching.
+                    // For server-tracked players (not in world), name stays hidden.
+                    boolean targetSneaking = liveEntity != null && liveEntity.isSneaking();
+                    if (targetSneaking) {
+                        String badge = PlayerHeadRenderer.isBedrockPlayer(entry) ? "§7[BE]" : "";
+                        PlayerHeadRenderer.drawPlayerName(
+                                drawContext, entry, iconX + HEAD_SIZE / 2, headY + HEAD_SIZE, badge);
+                    }
                 }
             }
         });
