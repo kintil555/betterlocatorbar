@@ -21,3 +21,4 @@ Thumbs.db
 
 # Local config overrides
 local.properties
+gradle/wrapper/gradle-wrapper.jar
