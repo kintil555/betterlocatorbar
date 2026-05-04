@@ -139,13 +139,13 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 }
 
                 // ── Sneak / Invisible detection ───────────────────────────────
-                // isInvisible() is more reliable client-side than hasStatusEffect
-                // for other players (vanilla hides them from entity list when invisible)
+                // Vanilla hides invisible players from the client entity list entirely.
+                // So if a player is in the tab list (entryMap) but NOT in liveEntities,
+                // they are either invisible or out of render range.
+                // If they ARE in liveEntities, check isSneaking() or isInvisible() directly.
                 boolean isGhost = false;
                 if (liveEntity != null) {
-                    boolean isSneaking  = liveEntity.isSneaking();
-                    boolean isInvisible = liveEntity.isInvisible();
-                    isGhost = isSneaking || isInvisible;
+                    isGhost = liveEntity.isSneaking() || liveEntity.isInvisible();
                 }
 
                 if (isGhost) {
