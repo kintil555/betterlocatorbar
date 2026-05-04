@@ -31,8 +31,7 @@ public class BetterLocatorBarClient implements ClientModInitializer {
         // Load config
         BLBConfig.load();
 
-        // Register network packets (server → client)
-        PlayerDataPacket.registerC2S();
+        // Register S2C packet receiver (C2S is registered server-side in ServerPacketHandler)
         PlayerDataPacket.registerS2C();
 
         // Register keybinding for tracker GUI
