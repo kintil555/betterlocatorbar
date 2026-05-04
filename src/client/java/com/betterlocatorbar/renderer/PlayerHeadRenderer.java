@@ -85,7 +85,7 @@ public class PlayerHeadRenderer {
 
         // Use var to avoid import dependency on SkinTextures/PlayerSkin class name across versions
         var skin = entry.getSkinTextures();
-        Identifier skinId = skin.texture();
+        Identifier skinId = skin.skin();
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {
