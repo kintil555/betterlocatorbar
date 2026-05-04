@@ -329,7 +329,6 @@ public class PlayerTrackerScreen extends Screen {
         return true;
     }
 
-    @Override
     public boolean isPauseScreen() {
         return false; // Don't pause in multiplayer
     }

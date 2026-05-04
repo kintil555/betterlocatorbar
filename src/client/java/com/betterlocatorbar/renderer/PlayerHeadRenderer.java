@@ -40,7 +40,7 @@ public class PlayerHeadRenderer {
 
         // Resolve skin texture (may be Steve/Alex default while async loading)
         SkinTextures skin = entry.getSkinTextures();
-        Identifier skinId = skin.texture();
+        Identifier skinId = skin.body().texturePath();
 
         int argbAlpha = (int) (alpha * 255f) << 24;
 
