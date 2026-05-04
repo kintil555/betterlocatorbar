@@ -55,7 +55,10 @@ public class PlayerHeadRenderer {
 
     private static Identifier resolveSkinId(PlayerListEntry entry) {
         SkinTextures skinTextures = entry.getSkinTextures();
-        Identifier texture = skinTextures.texture();
+        if (skinTextures == null) return DEFAULT_SKIN;
+        var body = skinTextures.body();
+        if (body == null) return DEFAULT_SKIN;
+        Identifier texture = body.texturePath();
         return texture != null ? texture : DEFAULT_SKIN;
     }
 
