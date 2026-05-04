@@ -125,7 +125,8 @@ public class PlayerTrackerScreen extends Screen {
                     .stream()
                     .filter(e -> e.getProfile() != null
                             && (mc.player == null
-                            || !e.getProfile().id().equals(mc.player.getUuid())))
+                            || !e.getProfile().id().equals(mc.player.getUuid()))
+                            && isRealPlayer(e))   // filter out NPC entries
                     .map(e -> new TrackedPlayerData(
                             e.getProfile().id(),
                             e.getProfile().name(),
@@ -144,6 +145,52 @@ public class PlayerTrackerScreen extends Screen {
             }
             applyFilter(searchField != null ? searchField.getText() : "");
         }
+    }
+
+    /**
+     * Heuristic to detect real players vs server-side NPCs (Citizens, NPCLib, etc).
+     *
+     * <p>NPC plugins typically fake player entries using offline-mode UUIDs
+     * (UUID version 3, name-based) or UUIDs with an all-zero node section.
+     * Real players from online-mode servers use version-4 (random) UUIDs.
+     * Offline-mode real players use version 3, but their names are non-empty
+     * and their game profiles have a texture property — NPCs usually lack that.</p>
+     *
+     * <p>Additional signals:
+     * <ul>
+     *   <li>Empty or blank display name → almost certainly an NPC placeholder</li>
+     *   <li>UUID version 2 → definitely not a real Mojang account</li>
+     * </ul>
+     * </p>
+     */
+    private static boolean isRealPlayer(PlayerListEntry entry) {
+        if (entry.getProfile() == null) return false;
+
+        // Must have a non-blank name
+        String name = entry.getProfile().name();
+        if (name == null || name.isBlank()) return false;
+
+        UUID uuid = entry.getProfile().id();
+        if (uuid == null) return false;
+
+        // UUID version 2 is never used for Mojang accounts
+        int version = (int) ((uuid.getMostSignificantBits() >> 12) & 0xF);
+        if (version == 2) return false;
+
+        // Citizens NPC plugin uses offline UUIDs derived from "NPC-<id>" names.
+        // Those UUIDs have the form: xxxxxxxx-xxxx-3xxx-xxxx-xxxxxxxxxxxx (v3).
+        // We cannot exclude all v3 UUIDs (offline real players also use v3),
+        // but we can exclude entries whose name looks like NPC names (starts
+        // with special chars or contains NUL bytes), or that have no textures
+        // at all and whose name contains only digits/underscores.
+        if (name.matches("[0-9_]+")) return false;  // purely numeric names → NPC
+
+        // Entries added by plugins sometimes have a ping of exactly 0 ms with
+        // no latency data (getLatency() returns 0). Real players almost always
+        // have at least 1 ms. This is a soft signal — combine with others.
+        // (We don't use this alone to avoid false-positives on LAN players.)
+
+        return true;
     }
 
     private void applyFilter(String query) {
@@ -282,13 +329,22 @@ public class PlayerTrackerScreen extends Screen {
         int nameY  = y + 5;
         context.drawTextWithShadow(textRenderer, player.name(), textX, nameY, COLOR_TEXT);
 
-        // Coordinates (only show if we have real data)
-        boolean hasCoords = player.x() != 0 || player.y() != 0 || player.z() != 0;
-        String coordsLine = hasCoords
-                ? player.coordsString()
-                : "Coordinates unavailable (client-only mod)";
+        // Coordinates — only real if data came from the server-side companion mod.
+        // TrackerDataStore entries always have real coords; network-fallback entries
+        // are constructed with (0,0,0) AND their UUID will NOT appear in TrackerDataStore.
+        boolean hasServerData = TrackerDataStore.getPlayers().stream()
+                .anyMatch(p -> p.uuid().equals(player.uuid()));
+        String coordsLine;
+        int coordsColor;
+        if (hasServerData) {
+            coordsLine  = player.coordsString();
+            coordsColor = COLOR_TEXT_DIM;
+        } else {
+            coordsLine  = "Coords unavailable (install server mod)";
+            coordsColor = 0xFF555555;
+        }
         context.drawTextWithShadow(textRenderer, coordsLine,
-                textX, nameY + 10, hasCoords ? COLOR_TEXT_DIM : 0xFF555555);
+                textX, nameY + 10, coordsColor);
 
         // Dimension badge
         String dim = player.dimensionLabel();
