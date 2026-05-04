@@ -70,7 +70,7 @@ public class ServerPacketHandler {
                                         PacketCodecs.INTEGER, PlayerEntry::y,
                                         PacketCodecs.INTEGER, PlayerEntry::z,
                                         PacketCodecs.STRING, PlayerEntry::dim,
-                                        PacketCodecs.BOOL, PlayerEntry::online,
+                                        PacketCodecs.BOOLEAN, PlayerEntry::online,
                                         PlayerEntry::new
                                 )),
                         ResponsePayload::entries,
@@ -90,13 +90,13 @@ public class ServerPacketHandler {
         ServerPlayNetworking.registerGlobalReceiver(RequestPayload.ID,
                 (payload, context) -> {
                     ServerPlayerEntity requester = context.player();
-                    if (requester.getServer() == null) return;
+                    if (context.server() == null) return;
 
                     List<PlayerEntry> entries = new ArrayList<>();
-                    for (ServerPlayerEntity p : requester.getServer().getPlayerManager().getPlayerList()) {
+                    for (ServerPlayerEntity p : context.server().getPlayerManager().getPlayerList()) {
                         if (p.getUuid().equals(requester.getUuid())) continue; // skip self
 
-                        String dimKey = p.getWorld().getRegistryKey().getValue().toString();
+                        String dimKey = p.getServerWorld().getRegistryKey().getValue().toString();
                         entries.add(new PlayerEntry(
                                 p.getUuid(),
                                 p.getName().getString(),

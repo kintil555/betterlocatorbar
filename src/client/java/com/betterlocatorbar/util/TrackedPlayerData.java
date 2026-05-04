@@ -39,7 +39,7 @@ public record TrackedPlayerData(
                     PacketCodecs.INTEGER, TrackedPlayerData::y,
                     PacketCodecs.INTEGER, TrackedPlayerData::z,
                     PacketCodecs.STRING, TrackedPlayerData::dimension,
-                    PacketCodecs.BOOL, TrackedPlayerData::isOnline,
+                    PacketCodecs.BOOLEAN, TrackedPlayerData::isOnline,
                     TrackedPlayerData::new
             );
 
