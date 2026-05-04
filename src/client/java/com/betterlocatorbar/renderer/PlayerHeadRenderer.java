@@ -4,6 +4,7 @@ import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
+import net.minecraft.client.render.RenderPipelines;
 import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Identifier;
 
@@ -98,7 +99,7 @@ public class PlayerHeadRenderer {
         // color format: ARGB — 0xAARRGGBB where AA=alpha, RR=GG=BB=FF for no tint
         int alphaInt = (int) (alpha * 255f) & 0xFF;
         int color = (alphaInt << 24) | 0x00FFFFFF;
-        context.drawTexturedQuad(texture, dstX, dstY, dstX + dstW, dstY + dstH, 0, u1, u2, v1, v2, color);
+        context.drawTexturedQuad(RenderPipelines.GUI_TEXTURED, texture, dstX, dstY, dstX + dstW, dstY + dstH, 0, u1, u2, v1, v2, color);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
