@@ -84,9 +84,9 @@ public class PlayerHeadRenderer {
         if (entry == null) return;
 
         // Use var to avoid import dependency on SkinTextures/PlayerSkin class name across versions
+        // In Yarn 1.21.11+build.4 the record component was renamed from texture -> skinTexture
         var skin = entry.getSkinTextures();
-        // SkinTextures.texture() returns the Identifier directly
-        Identifier skinId = skin.texture();
+        Identifier skinId = skin.skinTexture();
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {
