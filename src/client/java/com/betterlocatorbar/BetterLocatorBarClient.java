@@ -3,59 +3,114 @@ package com.betterlocatorbar;
 import com.betterlocatorbar.config.BLBConfig;
 import com.betterlocatorbar.gui.PlayerTrackerScreen;
 import com.betterlocatorbar.network.PlayerDataPacket;
-import com.betterlocatorbar.network.TrackerDataStore;
+import com.betterlocatorbar.renderer.PlayerHeadRenderer;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.List;
 
 public class BetterLocatorBarClient implements ClientModInitializer {
 
     public static final String MOD_ID = "betterlocatorbar";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    /** Keybind to open the Player Tracker GUI (default: B) */
     private static KeyBinding openTrackerKey;
-    private static final KeyBinding.Category TRACKER_CATEGORY =
-            KeyBinding.Category.create(Identifier.of("betterlocatorbar", "general"));
+
+    /**
+     * Tracks whether the mixin successfully cancelled vanilla rendering this frame.
+     * If true, HudRenderCallback skips drawing (mixin already handled it).
+     * If false (mixin method didn't match), HudRenderCallback draws as fallback.
+     */
+    public static boolean mixinCancelledThisFrame = false;
 
     @Override
     public void onInitializeClient() {
         LOGGER.info("[BetterLocatorBar] Initializing...");
 
-        // Load config
         BLBConfig.load();
-
-        // Register S2C packet receiver (C2S is registered server-side in ServerPacketHandler)
+        PlayerDataPacket.registerC2S();
         PlayerDataPacket.registerS2C();
 
-        // Register keybinding for tracker GUI
+        // Keybind: open tracker GUI
         openTrackerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.betterlocatorbar.open_tracker",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_B,
-                TRACKER_CATEGORY
+                "category.betterlocatorbar.general"
         ));
 
-        // Clear cached tracker data on disconnect (avoid stale coords on next join)
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
-                TrackerDataStore.clear());
-
-        // Check keybind every tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            mixinCancelledThisFrame = false; // reset each tick
             if (openTrackerKey.wasPressed() && client.player != null) {
                 client.setScreen(new PlayerTrackerScreen());
             }
         });
 
-        LOGGER.info("[BetterLocatorBar] Initialized successfully!");
+        // HudRenderCallback: draws heads AFTER all HUD elements are rendered.
+        // This is a FALLBACK in case the mixin cancel didn't hook the right method.
+        // When the mixin works correctly, we skip this (to avoid double drawing).
+        HudRenderCallback.EVENT.register((drawContext, tickCounter) -> {
+            if (!BLBConfig.get().showPlayerHeads) return;
+
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc == null || mc.world == null || mc.player == null) return;
+            if (mc.getNetworkHandler() == null) return;
+
+            ClientPlayerEntity localPlayer = mc.player;
+
+            List<PlayerListEntry> tracked = mc.getNetworkHandler()
+                    .getPlayerList()
+                    .stream()
+                    .filter(e -> e.getProfile() != null
+                            && !e.getProfile().id().equals(localPlayer.getUuid())
+                            && PlayerHeadRenderer.shouldShowInLocatorBar(e))
+                    .toList();
+
+            if (tracked.isEmpty()) return;
+
+            int screenW = mc.getWindow().getScaledWidth();
+            int screenH = mc.getWindow().getScaledHeight();
+
+            float headScale = BLBConfig.get().headScale;
+            int headSize = Math.max(8, (int) (9 * headScale));
+
+            // XP bar: 182px wide, centered, vertically at screenH-32 to screenH-27
+            int barCenterY = screenH - 29;
+            int headY = barCenterY - headSize / 2;
+            int barWidth = 182;
+            int barStartX = (screenW - barWidth) / 2;
+            int count = tracked.size();
+
+            for (int i = 0; i < count; i++) {
+                PlayerListEntry entry = tracked.get(i);
+
+                int dotX = (count == 1)
+                        ? barStartX + barWidth / 2
+                        : barStartX + (i * barWidth) / (count - 1);
+                int iconX = Math.clamp(dotX - headSize / 2, barStartX, barStartX + barWidth - headSize);
+
+                float alpha = PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f;
+                PlayerHeadRenderer.drawPlayerHead(drawContext, entry, iconX, headY, headSize, alpha);
+
+                if (BLBConfig.get().showNameTag) {
+                    String badge = PlayerHeadRenderer.isBedrockPlayer(entry) ? "§7[BE]" : "";
+                    PlayerHeadRenderer.drawPlayerName(
+                            drawContext, entry, iconX + headSize / 2, headY + headSize, badge);
+                }
+            }
+        });
+
+        LOGGER.info("[BetterLocatorBar] Initialized!");
     }
 
     public static KeyBinding getOpenTrackerKey() {

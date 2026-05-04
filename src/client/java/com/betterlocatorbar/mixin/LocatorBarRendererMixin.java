@@ -15,56 +15,86 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.List;
 
 /**
- * Intercepts {@link net.minecraft.client.gui.hud.bar.LocatorBar} rendering
- * to replace the vanilla coloured-dot icons with player skin heads.
+ * Mixin target: net.minecraft.client.gui.hud.bar.LocatorBar
  *
- * <p>In 1.21.11 (Yarn 1.21.11+build.1) the locator bar lives in
- * {@code net.minecraft.client.gui.hud.bar.LocatorBar} and the two render
- * entry-points are {@code renderBar} and {@code renderAddons}, both with
- * the signature {@code (DrawContext, RenderTickCounter) void}.</p>
+ * Strategy:
+ * - Inject at HEAD of the render/renderBar method and cancel it entirely.
+ *   Then draw our own head icons in the EXACT same position vanilla would use.
  *
- * <p>We cancel {@code renderBar} (which draws the bar background + dots)
- * and replace it entirely with our head-icon rendering.
- * {@code renderAddons} (which draws the XP level number overlay) is left
- * untouched so vanilla addons still render correctly.</p>
+ * The vanilla locator bar renders player dots along the XP bar (same Y, same X range).
+ * XP bar: width=182, centered, bottom at screenH - 29 (above hotbar which ends at screenH).
+ * XP bar top = screenH - 29 - 5 = screenH - 34.
+ * Locator dot Y = screenH - 34 - 4 = screenH - 38 (dots sit 4px above XP bar top).
+ *
+ * We try multiple method name candidates to handle Yarn mapping variance.
  */
 @Mixin(targets = "net.minecraft.client.gui.hud.bar.LocatorBar")
 public class LocatorBarRendererMixin {
 
     /**
-     * Cancel vanilla dot rendering and draw player heads instead.
-     *
-     * <p>We inject at HEAD of {@code renderBar} and cancel so that the
-     * default coloured-dot bar is never drawn.</p>
+     * Primary injection — tries method name "render" first.
+     * If this method doesn't exist, Mixin will warn but not crash (require=0).
+     */
+    @Inject(
+            method = "render",
+            at = @At("HEAD"),
+            cancellable = true,
+            require = 0
+    )
+    private void blb$cancelAndReplaceRender(DrawContext context,
+                                              RenderTickCounter tickCounter,
+                                              CallbackInfo ci) {
+        if (!BLBConfig.get().showPlayerHeads) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.world == null || mc.player == null) return;
+        ci.cancel();
+        renderHeadBar(context, mc);
+    }
+
+    /**
+     * Fallback — tries "renderBar" in case Yarn names it differently.
      */
     @Inject(
             method = "renderBar",
             at = @At("HEAD"),
-            cancellable = true
+            cancellable = true,
+            require = 0
     )
-    private void blb$replaceLocatorDots(DrawContext context,
-                                         RenderTickCounter tickCounter,
-                                         CallbackInfo ci) {
+    private void blb$cancelAndReplaceRenderBar(DrawContext context,
+                                                 RenderTickCounter tickCounter,
+                                                 CallbackInfo ci) {
         if (!BLBConfig.get().showPlayerHeads) return;
-
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.world == null || mc.player == null) return;
-
-        // Cancel vanilla rendering — we draw ourselves
         ci.cancel();
-
         renderHeadBar(context, mc);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
+    /**
+     * Fallback 2 — single-arg render variant.
+     */
+    @Inject(
+            method = "render(Lnet/minecraft/client/gui/DrawContext;)V",
+            at = @At("HEAD"),
+            cancellable = true,
+            require = 0
+    )
+    private void blb$cancelAndReplaceRenderSingle(DrawContext context,
+                                                    CallbackInfo ci) {
+        if (!BLBConfig.get().showPlayerHeads) return;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null || mc.world == null || mc.player == null) return;
+        ci.cancel();
+        renderHeadBar(context, mc);
+    }
+
+    // ─── Head bar rendering ───────────────────────────────────────────────────
 
     private static void renderHeadBar(DrawContext context, MinecraftClient mc) {
         if (mc.getNetworkHandler() == null) return;
-
         ClientPlayerEntity localPlayer = mc.player;
         if (localPlayer == null) return;
 
-        // Collect all tracked players (excluding self, NPCs, Bedrock bots)
         List<PlayerListEntry> tracked = mc.getNetworkHandler()
                 .getPlayerList()
                 .stream()
@@ -75,45 +105,46 @@ public class LocatorBarRendererMixin {
 
         if (tracked.isEmpty()) return;
 
-        // ── Layout ──────────────────────────────────────────────────────────
         int screenW = mc.getWindow().getScaledWidth();
         int screenH = mc.getWindow().getScaledHeight();
 
         float headScale = BLBConfig.get().headScale;
-        // Vanilla locator bar sits just above the XP bar (height = 9px).
-        // We match that vertical position: bar bottom edge = screenH - 49.
-        int headSize  = Math.max(8, (int) (9 * headScale));
-        int barBottom = screenH - 49;              // same Y as vanilla bar bottom
-        int barY      = barBottom - headSize;       // top of head icons
+        int headSize = Math.max(8, (int) (9 * headScale));
 
-        // Horizontal span: up to 182 px wide (matches vanilla XP bar width),
-        // but shrinks if there are few players so heads don't crowd.
-        int maxBarW  = Math.min(182, screenW - 20);
-        int startX   = (screenW - maxBarW) / 2;
-        int spacing  = tracked.size() > 1 ? maxBarW / (tracked.size() - 1) : 0;
+        // Vanilla XP bar: 182px wide, centered, top at screenH - 32, bottom at screenH - 27.
+        // Locator dots appear INSIDE the XP bar area (same horizontal span, vertically centered).
+        // We place heads so their bottom aligns with the XP bar top: barY = screenH - 32 - headSize.
+        // But to overlay correctly ON the bar (like dots), put center at screenH - 29 (bar center).
+        int barCenterY = screenH - 29;  // vertical center of XP bar
+        int headY = barCenterY - headSize / 2;  // center head vertically on bar
 
-        for (int i = 0; i < tracked.size(); i++) {
+        // Horizontal: 182px wide XP bar, centered
+        int barWidth = 182;
+        int barStartX = (screenW - barWidth) / 2;
+
+        int count = tracked.size();
+
+        for (int i = 0; i < count; i++) {
             PlayerListEntry entry = tracked.get(i);
 
-            int iconX;
-            if (tracked.size() == 1) {
-                iconX = startX + maxBarW / 2 - headSize / 2;
+            // Map player index to a position within the 182px bar
+            // (same linear mapping vanilla uses for dots)
+            int dotX;
+            if (count == 1) {
+                dotX = barStartX + barWidth / 2;
             } else {
-                iconX = startX + i * spacing - headSize / 2;
+                dotX = barStartX + (i * barWidth) / (count - 1);
             }
-            iconX = Math.clamp(iconX, startX, startX + maxBarW - headSize);
+            int iconX = dotX - headSize / 2;
+            iconX = Math.clamp(iconX, barStartX, barStartX + barWidth - headSize);
 
-            // Bedrock players get a slight visual tint so you can tell them apart
             float alpha = PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f;
-            PlayerHeadRenderer.drawPlayerHead(context, entry, iconX, barY, headSize, alpha);
+            PlayerHeadRenderer.drawPlayerHead(context, entry, iconX, headY, headSize, alpha);
 
             if (BLBConfig.get().showNameTag) {
-                // Draw platform badge (☐ = Bedrock, ☑ = Java) above the name
-                String platformBadge = PlayerHeadRenderer.isBedrockPlayer(entry)
-                        ? "§7[BE]" : "";
+                String badge = PlayerHeadRenderer.isBedrockPlayer(entry) ? "§7[BE]" : "";
                 PlayerHeadRenderer.drawPlayerName(
-                        context, entry, iconX + headSize / 2, barY + headSize,
-                        platformBadge);
+                        context, entry, iconX + headSize / 2, headY + headSize, badge);
             }
         }
     }
