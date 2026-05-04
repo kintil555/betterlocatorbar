@@ -2,7 +2,6 @@ package com.betterlocatorbar.network;
 
 import com.betterlocatorbar.util.TrackedPlayerData;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.RegistryByteBuf;
 import net.minecraft.network.codec.PacketCodec;
 import net.minecraft.network.codec.PacketCodecs;
@@ -58,14 +57,10 @@ public class PlayerDataPacket {
     }
 
     // ─── Registration ─────────────────────────────────────────────────────────
-
-    public static void registerC2S() {
-        PayloadTypeRegistry.playC2S().register(RequestPayload.ID, RequestPayload.CODEC);
-    }
+    // NOTE: PayloadTypeRegistry (C2S + S2C) is handled in ServerPacketHandler (common init).
+    // This method only registers the client-side receiver.
 
     public static void registerS2C() {
-        PayloadTypeRegistry.playS2C().register(ResponsePayload.ID, ResponsePayload.CODEC);
-
         // Handle response on the client side — store data in TrackerDataStore
         ClientPlayNetworking.registerGlobalReceiver(ResponsePayload.ID, (payload, context) -> {
             context.client().execute(() ->
