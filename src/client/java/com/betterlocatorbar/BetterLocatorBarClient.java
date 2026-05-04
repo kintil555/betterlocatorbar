@@ -16,7 +16,6 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
-import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -35,9 +34,6 @@ public class BetterLocatorBarClient implements ClientModInitializer {
     private static final int BAR_WIDTH = 182;
     private static final int HEAD_SIZE = 7;
 
-    // Threshold Y difference (blocks) before head starts bouncing
-    private static final float BOUNCE_THRESHOLD_Y = 5.0f;
-
     // Bounce state per player UUID: current bounce offset in pixels (float for smooth)
     private static final Map<UUID, Float> bounceOffset = new HashMap<>();
     // Direction: +1 = moving toward peak, -1 = moving back to center
@@ -45,9 +41,9 @@ public class BetterLocatorBarClient implements ClientModInitializer {
     // Which way to bounce: -1 = up (negative Y in screen), +1 = down
     private static final Map<UUID, Integer> bounceSign = new HashMap<>();
 
-    // Bounce speed in pixels per tick, max offset = 1px
-    private static final float BOUNCE_SPEED = 0.08f;
-    private static final float BOUNCE_MAX = 1.0f;
+    // Bounce speed in pixels per tick, max offset = 2px (more visible)
+    private static final float BOUNCE_SPEED = 0.15f;
+    private static final float BOUNCE_MAX = 2.0f;
 
     // Last known position for players who are sneaking or invisible (frozen icon)
     private static final Map<UUID, double[]> frozenPos = new HashMap<>();
@@ -143,12 +139,12 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 }
 
                 // ── Sneak / Invisible detection ───────────────────────────────
-                // If the target is sneaking OR invisible, freeze icon at last known pos
-                // and render at 50% opacity (ghost mode).
+                // isInvisible() is more reliable client-side than hasStatusEffect
+                // for other players (vanilla hides them from entity list when invisible)
                 boolean isGhost = false;
                 if (liveEntity != null) {
-                    boolean isSneaking = liveEntity.isSneaking();
-                    boolean isInvisible = liveEntity.hasStatusEffect(StatusEffects.INVISIBILITY);
+                    boolean isSneaking  = liveEntity.isSneaking();
+                    boolean isInvisible = liveEntity.isInvisible();
                     isGhost = isSneaking || isInvisible;
                 }
 
@@ -198,15 +194,28 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 int iconSize = Math.max((int) MIN_SIZE, Math.round(MAX_SIZE * scaleFactor));
                 int iconX = Math.clamp(dotCenterX - iconSize / 2, barStartX, barStartX + BAR_WIDTH - iconSize);
 
-                // Determine bounce direction based on Y difference
-                double yDiff = targetY - localY;
+                // ── Pitch-based bounce (arrow indicator) ─────────────────────
+                // Camera pitch: negative = looking up, positive = looking down.
+                // We compare camera pitch against the angle to the target.
+                // If target is above camera sight line → icon bounces UP (arrow up).
+                // If target is below camera sight line → icon bounces DOWN (arrow down).
+                // More sensitive: trigger at 5° pitch difference, max bounce 2px.
+                double dist2DForPitch = Math.sqrt(dx * dx + dz * dz);
+                float cameraPitch = localPlayer.getLerpedPitch(tickDelta);
+                // Angle to target: positive = target below horizontal, negative = above
+                float pitchToTarget = dist2DForPitch > 0.5
+                        ? (float) Math.toDegrees(Math.atan2(localY - targetY, dist2DForPitch))
+                        : 0f; // flat
+                // Difference: how much camera pitch deviates from direction to target
+                float pitchDiff = cameraPitch - pitchToTarget;
+
                 int newSign;
-                if (yDiff > BOUNCE_THRESHOLD_Y) {
-                    newSign = -1; // target above → head bounces up (screen up = negative Y)
-                } else if (yDiff < -BOUNCE_THRESHOLD_Y) {
-                    newSign = 1;  // target below → head bounces down
+                if (pitchDiff < -5f) {
+                    newSign = -1; // looking more up than target → target is above → bounce up
+                } else if (pitchDiff > 5f) {
+                    newSign = 1;  // looking more down than target → target is below → bounce down
                 } else {
-                    newSign = 0;  // same level → no bounce
+                    newSign = 0;
                 }
 
                 // Update bounce sign if changed
