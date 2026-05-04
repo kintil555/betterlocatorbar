@@ -35,13 +35,11 @@ public class BetterLocatorBarClient implements ClientModInitializer {
         // Only register S2C receiver — C2S payload type is registered server-side
         PlayerDataPacket.registerS2C();
 
-        // KeyBinding in 1.21.9+ requires KeyBinding.Category instead of String
-        KeyBinding.Category category = new KeyBinding.Category("category.betterlocatorbar.general");
         openTrackerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.betterlocatorbar.open_tracker",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_B,
-                category
+                "category.betterlocatorbar.general"
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
