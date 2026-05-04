@@ -16,6 +16,7 @@ import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
@@ -47,6 +48,9 @@ public class BetterLocatorBarClient implements ClientModInitializer {
     // Bounce speed in pixels per tick, max offset = 1px
     private static final float BOUNCE_SPEED = 0.08f;
     private static final float BOUNCE_MAX = 1.0f;
+
+    // Last known position for players who are sneaking or invisible (frozen icon)
+    private static final Map<UUID, double[]> frozenPos = new HashMap<>();
 
     @Override
     public void onInitializeClient() {
@@ -115,7 +119,6 @@ public class BetterLocatorBarClient implements ClientModInitializer {
             int screenH = mc.getWindow().getScaledHeight();
             int barStartX = (screenW - BAR_WIDTH) / 2;
             int barCenterY = screenH - 30;
-            int baseHeadY = barCenterY - HEAD_SIZE / 2;
 
             float tickDelta = tickCounter.getTickProgress(false);
             float cameraYaw = localPlayer.getLerpedYaw(tickDelta);
@@ -139,6 +142,32 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                     targetZ = data.z();
                 }
 
+                // ── Sneak / Invisible detection ───────────────────────────────
+                // If the target is sneaking OR invisible, freeze icon at last known pos
+                // and render at 50% opacity (ghost mode).
+                boolean isGhost = false;
+                if (liveEntity != null) {
+                    boolean isSneaking = liveEntity.isSneaking();
+                    boolean isInvisible = liveEntity.hasStatusEffect(StatusEffects.INVISIBILITY);
+                    isGhost = isSneaking || isInvisible;
+                }
+
+                if (isGhost) {
+                    // Use frozen position if we have one, else store current
+                    double[] frozen = frozenPos.get(uuid);
+                    if (frozen == null) {
+                        // First tick becoming ghost — freeze at current pos
+                        frozenPos.put(uuid, new double[]{targetX, targetY, targetZ});
+                        frozen = frozenPos.get(uuid);
+                    }
+                    targetX = frozen[0];
+                    targetY = frozen[1];
+                    targetZ = frozen[2];
+                } else {
+                    // Not a ghost — clear frozen pos
+                    frozenPos.remove(uuid);
+                }
+
                 double dx = targetX - localPlayer.getX();
                 double dz = targetZ - localPlayer.getZ();
                 float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -148,7 +177,26 @@ public class BetterLocatorBarClient implements ClientModInitializer {
 
                 float normalized = (yawDelta + BAR_FOV_DEGREES) / (BAR_FOV_DEGREES * 2.0f);
                 int dotCenterX = barStartX + Math.round(normalized * BAR_WIDTH);
-                int iconX = Math.clamp(dotCenterX - HEAD_SIZE / 2, barStartX, barStartX + BAR_WIDTH - HEAD_SIZE);
+
+                // ── Distance-based scaling ────────────────────────────────────
+                // Vanilla dot scales from full size at close range to small at far range.
+                // Distance where icon is full size (blocks)
+                double dist2D = Math.sqrt(dx * dx + dz * dz);
+                float MIN_SIZE = 3f;
+                float MAX_SIZE = HEAD_SIZE;
+                float FULL_SIZE_DIST  = 16.0f;   // full size within 16 blocks
+                float MIN_SIZE_DIST   = 128.0f;  // smallest at 128+ blocks
+                float scaleFactor;
+                if (dist2D <= FULL_SIZE_DIST) {
+                    scaleFactor = 1.0f;
+                } else if (dist2D >= MIN_SIZE_DIST) {
+                    scaleFactor = MIN_SIZE / MAX_SIZE;
+                } else {
+                    float t = (float)(dist2D - FULL_SIZE_DIST) / (MIN_SIZE_DIST - FULL_SIZE_DIST);
+                    scaleFactor = 1.0f - t * (1.0f - MIN_SIZE / MAX_SIZE);
+                }
+                int iconSize = Math.max((int) MIN_SIZE, Math.round(MAX_SIZE * scaleFactor));
+                int iconX = Math.clamp(dotCenterX - iconSize / 2, barStartX, barStartX + BAR_WIDTH - iconSize);
 
                 // Determine bounce direction based on Y difference
                 double yDiff = targetY - localY;
@@ -169,23 +217,25 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                     bounceDir.put(uuid, 1);
                 }
 
-                // Apply bounce offset to Y
-                int pixelOffset = newSign != 0
+                // Apply bounce offset to Y (no bounce while ghost — icon is frozen)
+                int pixelOffset = (!isGhost && newSign != 0)
                         ? Math.round(bounceOffset.getOrDefault(uuid, 0f) * newSign)
                         : 0;
 
-                int headY = baseHeadY + pixelOffset;
+                int headY = barCenterY - iconSize / 2 + pixelOffset;
 
                 PlayerListEntry entry = entryMap.get(uuid);
                 if (entry == null) continue;
 
-                float alpha = PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f;
-                PlayerHeadRenderer.drawPlayerHead(drawContext, entry, iconX, headY, HEAD_SIZE, alpha);
+                // ── Alpha ─────────────────────────────────────────────────────
+                float alpha = isGhost ? 0.5f : (PlayerHeadRenderer.isBedrockPlayer(entry) ? 0.65f : 1.0f);
+
+                PlayerHeadRenderer.drawPlayerHead(drawContext, entry, iconX, headY, iconSize, alpha);
 
                 if (BLBConfig.get().showNameTag && localPlayer.isSneaking()) {
                     String badge = PlayerHeadRenderer.isBedrockPlayer(entry) ? "§7[BE]" : "";
                     PlayerHeadRenderer.drawPlayerName(
-                            drawContext, entry, iconX + HEAD_SIZE / 2, headY + HEAD_SIZE, badge);
+                            drawContext, entry, iconX + iconSize / 2, headY + iconSize, badge);
                 }
             }
         });

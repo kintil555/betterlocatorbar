@@ -71,9 +71,13 @@ public class PlayerHeadRenderer {
 
         BLBConfig cfg = BLBConfig.get();
         if (cfg.showHeadBorder) {
-            int borderAlpha = (int) (alpha * 255f) << 24;
+            int borderAlpha = (int) (alpha * 180f) << 24; // slightly transparent outline
             int borderColor = (cfg.headBorderColor & 0x00FFFFFF) | borderAlpha;
-            context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
+            // Draw 1px outline — top, bottom, left, right lines only
+            context.fill(x,     y - 1, x + size, y,          borderColor); // top
+            context.fill(x,     y + size, x + size, y + size + 1, borderColor); // bottom
+            context.fill(x - 1, y,     x,          y + size, borderColor); // left
+            context.fill(x + size, y,  x + size + 1, y + size, borderColor); // right
         }
 
         drawSkinRegion(context, skinId, x, y, size, size,
