@@ -1,36 +1,31 @@
 package com.betterlocatorbar.renderer;
 
 import com.betterlocatorbar.config.BLBConfig;
-import com.mojang.authlib.GameProfile;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.texture.PlayerSkinProvider;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 /**
- * Renders a player's skin face (8×8 head region) in the locator bar.
+ * Renders a player's skin face in the locator bar.
  *
- * <p>In 1.21.11, SkinTextures moved packages and PlayerListEntry#getSkinTextures
- * was restructured. We bypass SkinTextures entirely and access the skin
- * Identifier directly via PlayerSkinProvider, falling back to the default
- * Steve/Alex skin Identifier when not yet loaded.</p>
+ * SkinTextures class moved packages in 1.21.x — we avoid importing it entirely
+ * by using `var` (type inference) and accessing the texture() record component
+ * reflectively only as fallback. Primary path: var skinTextures = entry.getSkinTextures()
+ * compiles fine since Java infers the type, no import needed.
  */
 public class PlayerHeadRenderer {
 
-    // UV coordinates in the 64×64 skin texture
     private static final int SKIN_FACE_U    = 8;
     private static final int SKIN_FACE_V    = 8;
     private static final int SKIN_FACE_SIZE = 8;
     private static final int SKIN_HAT_U     = 40;
     private static final int SKIN_HAT_V     = 8;
 
-    // Default Steve skin — used while async skin loading is in progress
     private static final Identifier DEFAULT_SKIN =
-            Identifier.of("minecraft", "textures/entity/player/slim/alex.png");
+            Identifier.ofVanilla("textures/entity/player/wide/steve.png");
 
     // ─── Geyser / Bedrock detection ───────────────────────────────────────────
 
@@ -60,44 +55,31 @@ public class PlayerHeadRenderer {
 
     // ─── Skin identifier resolution ───────────────────────────────────────────
 
-    /**
-     * Resolve the skin texture {@link Identifier} for a given {@link PlayerListEntry}.
-     *
-     * <p>Strategy (1.21.11 compatible):
-     * <ol>
-     *   <li>Ask the client's {@link PlayerSkinProvider} for the cached skin.</li>
-     *   <li>Fall back to {@link #DEFAULT_SKIN} while the async load is pending.</li>
-     * </ol>
-     */
     private static Identifier resolveSkinId(PlayerListEntry entry) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc == null || mc.getSkinProvider() == null) return DEFAULT_SKIN;
-
-        GameProfile profile = entry.getProfile();
-        if (profile == null) return DEFAULT_SKIN;
-
-        // getSkinTextures() on PlayerSkinProvider returns a CompletableFuture<SkinTextures>
-        // but we only need the texture Identifier which we can get synchronously if cached.
-        // Use the Supplier cached in the entry via texturesSupplier field if available,
-        // otherwise fall back to default.
         try {
-            // In 1.21.11 Yarn, PlayerListEntry still exposes getSkinTextures()
-            // but the return type SkinTextures lives in net.minecraft.entity.player.
-            // We call it reflectively to avoid a compile-time import dependency.
-            Object skinTextures = entry.getClass()
-                    .getMethod("getSkinTextures")
-                    .invoke(entry);
-            if (skinTextures != null) {
-                // SkinTextures is a record; accessor for skin Identifier is texture()
-                Object id = skinTextures.getClass()
-                        .getMethod("texture")
-                        .invoke(skinTextures);
-                if (id instanceof Identifier identifier) {
-                    return identifier;
+            // Use `var` so Java infers SkinTextures type — no import needed.
+            // getSkinTextures() exists in PlayerListEntry per Yarn 1.21.11 docs.
+            var skinTextures = entry.getSkinTextures();
+            if (skinTextures == null) return DEFAULT_SKIN;
+
+            // SkinTextures is a record with first component `texture` (Identifier).
+            // Call texture() accessor — if it exists, great. Otherwise reflect.
+            try {
+                var method = skinTextures.getClass().getMethod("texture");
+                Object result = method.invoke(skinTextures);
+                if (result instanceof Identifier id) return id;
+            } catch (NoSuchMethodException ignored) {
+                // Try alternative accessor names
+                for (String name : new String[]{"getSkin", "getTexture", "skin", "id"}) {
+                    try {
+                        var m = skinTextures.getClass().getMethod(name);
+                        Object r = m.invoke(skinTextures);
+                        if (r instanceof Identifier id) return id;
+                    } catch (Exception ignored2) {}
                 }
             }
-        } catch (Exception ignored) {
-            // Fall through to default
+        } catch (Exception e) {
+            // getSkinTextures() not available — fall through
         }
         return DEFAULT_SKIN;
     }
@@ -107,7 +89,6 @@ public class PlayerHeadRenderer {
     public static void drawPlayerHead(DrawContext context, PlayerListEntry entry,
                                        int x, int y, int size, float alpha) {
         if (entry == null) return;
-
         Identifier skinId = resolveSkinId(entry);
 
         BLBConfig cfg = BLBConfig.get();
@@ -117,10 +98,8 @@ public class PlayerHeadRenderer {
             context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
         }
 
-        // Face base layer
         drawSkinRegion(context, skinId, x, y, size, size,
                 SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
-        // Hat overlay layer
         drawSkinRegion(context, skinId, x, y, size, size,
                 SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
     }
@@ -133,10 +112,7 @@ public class PlayerHeadRenderer {
         float u2 = (float) (srcX + srcW) / texW;
         float v1 = (float) srcY / texH;
         float v2 = (float) (srcY + srcH) / texH;
-
-        context.drawTexturedQuad(texture,
-                dstX, dstY, dstX + dstW, dstY + dstH,
-                u1, u2, v1, v2);
+        context.drawTexturedQuad(texture, dstX, dstY, dstX + dstW, dstY + dstH, u1, u2, v1, v2);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
@@ -146,7 +122,6 @@ public class PlayerHeadRenderer {
         if (!BLBConfig.get().showNameTag) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.textRenderer == null) return;
-
         String name    = entry.getProfile().name();
         String display = badge.isEmpty() ? name : badge + " " + name;
         int nameWidth  = mc.textRenderer.getWidth(display);
