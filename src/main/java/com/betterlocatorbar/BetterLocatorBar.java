@@ -5,8 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Common (shared) initializer for Better Locator Bar.
- * Server-side packet registration is done here.
+ * Common (server + client) initializer for Better Locator Bar.
+ *
+ * <p>Registers server-side packet handlers and the real-time coordinate
+ * broadcast scheduler. Both components are no-ops when running on a
+ * client-only installation (Fabric handles environment gating).</p>
  */
 public class BetterLocatorBar implements ModInitializer {
 
@@ -16,7 +19,11 @@ public class BetterLocatorBar implements ModInitializer {
     @Override
     public void onInitialize() {
         LOGGER.info("[BetterLocatorBar] Common initializer loaded.");
-        // Register server-side packet handlers
+
+        // Register pull-based request handler + payload types
         ServerPacketHandler.register();
+
+        // Register push-based real-time coordinate broadcaster (server tick)
+        CoordBroadcastScheduler.register();
     }
 }

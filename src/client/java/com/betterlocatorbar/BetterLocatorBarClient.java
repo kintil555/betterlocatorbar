@@ -3,9 +3,11 @@ package com.betterlocatorbar;
 import com.betterlocatorbar.config.BLBConfig;
 import com.betterlocatorbar.gui.PlayerTrackerScreen;
 import com.betterlocatorbar.network.PlayerDataPacket;
+import com.betterlocatorbar.network.TrackerDataStore;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -41,6 +43,10 @@ public class BetterLocatorBarClient implements ClientModInitializer {
                 GLFW.GLFW_KEY_B,
                 TRACKER_CATEGORY
         ));
+
+        // Clear cached tracker data on disconnect (avoid stale coords on next join)
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) ->
+                TrackerDataStore.clear());
 
         // Check keybind every tick
         ClientTickEvents.END_CLIENT_TICK.register(client -> {

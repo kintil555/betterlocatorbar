@@ -281,6 +281,14 @@ public class PlayerTrackerScreen extends Screen {
                 panelY + PANEL_HEIGHT - 12,
                 COLOR_TEXT_DIM);
 
+        // Footer: server-mod live indicator
+        boolean liveData = TrackerDataStore.hasFreshData();
+        String liveText = liveData ? "● LIVE" : "○ No server mod";
+        int liveColor   = liveData ? COLOR_ONLINE : COLOR_TEXT_DIM;
+        int liveX = panelX + PANEL_WIDTH / 2 - textRenderer.getWidth(liveText) / 2;
+        context.drawTextWithShadow(textRenderer, liveText, liveX,
+                panelY + PANEL_HEIGHT - 12, liveColor);
+
         // Close hint
         String closeHint = "Press ESC to close";
         context.drawTextWithShadow(textRenderer, closeHint,
