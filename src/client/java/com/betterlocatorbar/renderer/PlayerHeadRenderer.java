@@ -94,7 +94,7 @@ public class PlayerHeadRenderer {
         int color = (alphaInt << 24) | 0x00FFFFFF;
         context.drawTexture(RenderPipelines.GUI_TEXTURED, texture,
                 dstX, dstY, dstW, dstH,
-                (float) srcX, (float) srcY,
+                srcX, srcY,
                 srcW, srcH, texW, texH, color);
     }
 
