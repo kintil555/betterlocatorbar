@@ -5,6 +5,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.player.SkinTextures;
+import net.minecraft.entity.player.AssetInfo;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
@@ -67,8 +68,14 @@ public class PlayerHeadRenderer {
         SkinTextures skinTextures = entry.getSkinTextures();
         if (skinTextures == null) return DEFAULT_SKIN;
 
-        // In 1.21.11, the record component was renamed from texture() to skinTexture()
-        Identifier tex = skinTextures.texture();
+        // In 1.21.11, SkinTextures was refactored:
+        // field 'texture' (Identifier) -> 'body' (AssetInfo.TextureAsset)
+        // AssetInfo.TextureAsset wraps the texture, access via .texture() or .id()
+        // We use reflection-free approach: body() returns AssetInfo.TextureAsset,
+        // which itself has a texture() accessor returning Identifier.
+        net.minecraft.entity.player.AssetInfo.TextureAsset bodyAsset = skinTextures.body();
+        if (bodyAsset == null) return DEFAULT_SKIN;
+        Identifier tex = bodyAsset.texture();
         return tex != null ? tex : DEFAULT_SKIN;
     }
 
