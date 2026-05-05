@@ -1,21 +1,19 @@
 package com.betterlocatorbar.renderer;
 
 import com.betterlocatorbar.config.BLBConfig;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.render.*;
 import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Identifier;
-import org.joml.Matrix4f;
 
 import java.util.UUID;
 
 /**
- * Renders player skin heads in the locator bar using direct VertexConsumer rendering.
- * This bypasses DrawContext.drawTexture() entirely to avoid signature compatibility
- * issues across 1.21.x versions.
+ * Renders player skin heads in the locator bar.
+ *
+ * Uses DrawContext.drawTexturedQuad(Identifier, x1, y1, x2, y2, u1, u2, v1, v2)
+ * which is a PUBLIC method confirmed in Yarn 1.21.6 docs — no RenderPipeline needed.
  */
 public class PlayerHeadRenderer {
 
@@ -58,13 +56,16 @@ public class PlayerHeadRenderer {
 
     private static Identifier resolveSkinId(PlayerListEntry entry) {
         try {
-            SkinTextures skinTextures = entry.getSkinTextures();
+            // getSkinTextures() exists on PlayerListEntry per Yarn 1.21.11 docs.
+            // SkinTextures is net.minecraft.entity.player.SkinTextures.
+            // We use var to avoid import issues — Java infers the type at compile time.
+            var skinTextures = entry.getSkinTextures();
             if (skinTextures == null) return DEFAULT_SKIN;
-            Identifier tex = skinTextures.texture();
-            return tex != null ? tex : DEFAULT_SKIN;
-        } catch (Exception e) {
-            return DEFAULT_SKIN;
-        }
+            // Reflectively call texture() to avoid import of SkinTextures
+            var tex = skinTextures.getClass().getMethod("texture").invoke(skinTextures);
+            if (tex instanceof Identifier id) return id;
+        } catch (Exception ignored) {}
+        return DEFAULT_SKIN;
     }
 
     // ─── Head rendering ───────────────────────────────────────────────────────
@@ -81,53 +82,33 @@ public class PlayerHeadRenderer {
             context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
         }
 
-        // Draw face and hat layers using direct GL quad rendering
-        int color = ((Math.clamp((int)(alpha * 255f), 0, 255)) << 24) | 0xFFFFFF;
-        renderSkinQuad(context, skinId, x, y, size, size,
-                SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64, color);
-        renderSkinQuad(context, skinId, x, y, size, size,
-                SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64, color);
+        // Face layer
+        drawSkinRegion(context, skinId, x, y, size,
+                SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
+        // Hat overlay layer
+        drawSkinRegion(context, skinId, x, y, size,
+                SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
     }
 
     /**
-     * Renders a UV-mapped quad directly via Tessellator.
-     * Completely avoids DrawContext.drawTexture() signature issues.
+     * Uses the public DrawContext.drawTexturedQuad(Identifier, x1, y1, x2, y2, u1, u2, v1, v2)
+     * confirmed in Yarn 1.21.6 docs. No RenderPipeline, no color arg — just Identifier + coords.
      */
-    private static void renderSkinQuad(DrawContext context, Identifier texture,
-                                        int dstX, int dstY, int dstW, int dstH,
+    private static void drawSkinRegion(DrawContext context, Identifier texture,
+                                        int dstX, int dstY, int size,
                                         int srcX, int srcY, int srcW, int srcH,
-                                        int texW, int texH, int color) {
-        float u0 = (float) srcX / texW;
-        float u1 = (float) (srcX + srcW) / texW;
-        float v0 = (float) srcY / texH;
-        float v1 = (float) (srcY + srcH) / texH;
+                                        int texW, int texH) {
+        float u1 = (float) srcX / texW;
+        float u2 = (float) (srcX + srcW) / texW;
+        float v1 = (float) srcY / texH;
+        float v2 = (float) (srcY + srcH) / texH;
 
-        float x0 = dstX;
-        float y0 = dstY;
-        float x1 = dstX + dstW;
-        float y1f = dstY + dstH;
-
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8)  & 0xFF;
-        int b = color & 0xFF;
-        int a = (color >> 24) & 0xFF;
-
-        RenderSystem.setShaderTexture(0, texture);
-
-        Matrix4f matrix = context.getMatrices().peek().getPositionMatrix();
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder buf = tessellator.begin(VertexFormat.DrawMode.QUADS,
-                VertexFormats.POSITION_TEXTURE_COLOR);
-
-        buf.vertex(matrix, x0, y1f, 0).texture(u0, v1).color(r, g, b, a);
-        buf.vertex(matrix, x1, y1f, 0).texture(u1, v1).color(r, g, b, a);
-        buf.vertex(matrix, x1, y0,  0).texture(u1, v0).color(r, g, b, a);
-        buf.vertex(matrix, x0, y0,  0).texture(u0, v0).color(r, g, b, a);
-
-        RenderSystem.enableBlend();
-        RenderSystem.setShader(GameRenderer::getPositionTexColorProgram);
-        BufferRenderer.drawWithGlobalProgram(buf.end());
-        RenderSystem.disableBlend();
+        // Public method from Yarn 1.21.6 DrawContext:
+        // drawTexturedQuad(Identifier sprite, int x1, int y1, int x2, int y2,
+        //                  float u1, float u2, float v1, float v2)
+        context.drawTexturedQuad(texture,
+                dstX, dstY, dstX + size, dstY + size,
+                u1, u2, v1, v2);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
