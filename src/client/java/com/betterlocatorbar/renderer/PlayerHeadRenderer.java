@@ -9,12 +9,6 @@ import net.minecraft.util.Identifier;
 
 import java.util.UUID;
 
-/**
- * Renders player skin heads in the locator bar.
- *
- * SkinTextures is in net.minecraft.entity.player (moved in 1.21.x).
- * Accessor: SkinTextures.texture() → Identifier (confirmed from Yarn docs).
- */
 public class PlayerHeadRenderer {
 
     private static final int SKIN_FACE_U    = 8;
@@ -39,6 +33,14 @@ public class PlayerHeadRenderer {
         return high16 == 0x0009L;
     }
 
+    /**
+     * Filter logic matching vanilla LocatorBar:
+     * Vanilla only shows players who have a valid PlayerListEntry with a game profile.
+     * We add extra NPC filtering on top:
+     * - Must have a non-blank name matching Minecraft username format
+     * - UUID version must not be 2 (fake/NPC players from plugins)
+     * - Bedrock players (Geyser) are always shown
+     */
     public static boolean shouldShowInLocatorBar(PlayerListEntry entry) {
         if (entry.getProfile() == null) return false;
         String name = entry.getProfile().name();
@@ -46,15 +48,14 @@ public class PlayerHeadRenderer {
         UUID uuid = entry.getProfile().id();
         if (uuid == null) return false;
 
-        // Bedrock players (Geyser) — always show
+        // Bedrock players (Geyser) always show
         if (isBedrockUuid(uuid)) return true;
 
-        // Filter UUID version 2 (fake/NPC players injected by server plugins)
+        // UUID version 2 = fake NPC player injected by server plugins
         int version = (int) ((uuid.getMostSignificantBits() >> 12) & 0xF);
         if (version == 2) return false;
 
-        // Minecraft usernames: 3-16 chars, only letters/digits/underscore, no spaces
-        // Anything outside this is an NPC, bot, or server-side fake player
+        // Valid Minecraft username: 3-16 chars, only letters/digits/underscore
         if (!name.matches("[a-zA-Z0-9_]{3,16}")) return false;
 
         return true;
@@ -63,10 +64,10 @@ public class PlayerHeadRenderer {
     // ─── Skin resolution ──────────────────────────────────────────────────────
 
     private static Identifier resolveSkinId(PlayerListEntry entry) {
-        // SkinTextures is net.minecraft.entity.player.SkinTextures in 1.21.11
-        // getSkinTextures() returns SkinTextures; .texture() is the record accessor
         SkinTextures skinTextures = entry.getSkinTextures();
         if (skinTextures == null) return DEFAULT_SKIN;
+
+        // In 1.21.11, the record component was renamed from texture() to skinTexture()
         Identifier tex = skinTextures.texture();
         return tex != null ? tex : DEFAULT_SKIN;
     }
@@ -85,19 +86,12 @@ public class PlayerHeadRenderer {
             context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
         }
 
-        // Face base layer
         drawSkinRegion(context, skinId, x, y, size,
                 SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
-        // Hat overlay layer
         drawSkinRegion(context, skinId, x, y, size,
                 SKIN_HAT_U, SKIN_HAT_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
     }
 
-    /**
-     * Public DrawContext.drawTexturedQuad confirmed in Yarn 1.21.6 docs:
-     * drawTexturedQuad(Identifier sprite, int x1, int y1, int x2, int y2,
-     *                  float u1, float u2, float v1, float v2)
-     */
     private static void drawSkinRegion(DrawContext context, Identifier texture,
                                         int dstX, int dstY, int size,
                                         int srcX, int srcY, int srcW, int srcH,

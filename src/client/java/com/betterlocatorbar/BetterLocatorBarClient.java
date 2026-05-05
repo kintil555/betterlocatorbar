@@ -85,9 +85,10 @@ public class BetterLocatorBarClient implements ClientModInitializer {
 
             Map<UUID, PlayerListEntry> entryMap = new HashMap<>();
             for (PlayerListEntry e : mc.getNetworkHandler().getPlayerList()) {
-                if (e.getProfile() != null && e.getProfile().id() != null) {
-                    entryMap.put(e.getProfile().id(), e);
-                }
+                if (e.getProfile() == null || e.getProfile().id() == null) continue;
+                // NPC filter: tiru logika vanilla LocatorBar (hanya tampilkan real players)
+                if (!PlayerHeadRenderer.shouldShowInLocatorBar(e)) continue;
+                entryMap.put(e.getProfile().id(), e);
             }
 
             Map<UUID, AbstractClientPlayerEntity> liveEntities = new HashMap<>();
