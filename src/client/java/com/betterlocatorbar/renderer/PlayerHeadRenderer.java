@@ -99,7 +99,7 @@ public class PlayerHeadRenderer {
         int alphaInt = Math.clamp((int)(alpha * 255f), 0, 255);
         int color = (alphaInt << 24) | 0x00FFFFFF;
         context.drawTexture(RenderPipelines.GUI_TEXTURED, texture,
-                dstX, dstY, dstX + dstW, dstY + dstH,
+                dstX, dstX + dstW, dstY, dstY + dstH,
                 u1, u2, v1, v2, color);
     }
 
