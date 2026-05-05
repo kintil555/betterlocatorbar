@@ -45,10 +45,18 @@ public class PlayerHeadRenderer {
         if (name == null || name.isBlank()) return false;
         UUID uuid = entry.getProfile().id();
         if (uuid == null) return false;
+
+        // Bedrock players (Geyser) — always show
         if (isBedrockUuid(uuid)) return true;
+
+        // Filter UUID version 2 (fake/NPC players injected by server plugins)
         int version = (int) ((uuid.getMostSignificantBits() >> 12) & 0xF);
         if (version == 2) return false;
-        if (name.matches("[0-9_]+")) return false;
+
+        // Minecraft usernames: 3-16 chars, only letters/digits/underscore, no spaces
+        // Anything outside this is an NPC, bot, or server-side fake player
+        if (!name.matches("[a-zA-Z0-9_]{3,16}")) return false;
+
         return true;
     }
 
