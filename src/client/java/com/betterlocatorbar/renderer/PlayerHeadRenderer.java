@@ -90,13 +90,12 @@ public class PlayerHeadRenderer {
                                         int dstX, int dstY, int dstW, int dstH,
                                         int srcX, int srcY, int srcW, int srcH,
                                         int texW, int texH, float alpha) {
-        float u1 = (float) srcX / texW;
-        float u2 = (float) (srcX + srcW) / texW;
-        float v1 = (float) srcY / texH;
-        float v2 = (float) (srcY + srcH) / texH;
         int alphaInt = (int) (alpha * 255f) & 0xFF;
         int color = (alphaInt << 24) | 0x00FFFFFF;
-        context.drawTexturedQuad(RenderPipelines.GUI_TEXTURED, texture, dstX, dstY, dstX + dstW, dstY + dstH, 0, u1, u2, v1, v2, color);
+        context.drawTexture(RenderPipelines.GUI_TEXTURED, texture,
+                dstX, dstY, dstW, dstH,
+                (float) srcX, (float) srcY,
+                srcW, srcH, texW, texH, color);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
