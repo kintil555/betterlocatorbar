@@ -5,7 +5,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
 import net.minecraft.entity.player.SkinTextures;
-import net.minecraft.entity.player.AssetInfo;
+import net.minecraft.util.AssetInfo;
 import net.minecraft.util.Identifier;
 
 import java.util.UUID;
@@ -73,9 +73,9 @@ public class PlayerHeadRenderer {
         // AssetInfo.TextureAsset wraps the texture, access via .texture() or .id()
         // We use reflection-free approach: body() returns AssetInfo.TextureAsset,
         // which itself has a texture() accessor returning Identifier.
-        net.minecraft.entity.player.AssetInfo.TextureAsset bodyAsset = skinTextures.body();
+        AssetInfo.TextureAsset bodyAsset = skinTextures.body();
         if (bodyAsset == null) return DEFAULT_SKIN;
-        Identifier tex = bodyAsset.texture();
+        Identifier tex = bodyAsset.texturePath();
         return tex != null ? tex : DEFAULT_SKIN;
     }
 
