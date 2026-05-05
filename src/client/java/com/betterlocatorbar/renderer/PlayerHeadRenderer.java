@@ -2,9 +2,9 @@ package com.betterlocatorbar.renderer;
 
 import com.betterlocatorbar.config.BLBConfig;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.network.PlayerListEntry;
-import net.minecraft.client.render.RenderPipelines;
 import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.util.Identifier;
 
@@ -94,9 +94,6 @@ public class PlayerHeadRenderer {
         float u2 = (float) (srcX + srcW) / texW;
         float v1 = (float) srcY / texH;
         float v2 = (float) (srcY + srcH) / texH;
-        // Encode alpha into ARGB color multiplier passed to drawTexturedQuad
-        // drawTexturedQuad(texture, x1, y1, x2, y2, z, u1, u2, v1, v2, color)
-        // color format: ARGB — 0xAARRGGBB where AA=alpha, RR=GG=BB=FF for no tint
         int alphaInt = (int) (alpha * 255f) & 0xFF;
         int color = (alphaInt << 24) | 0x00FFFFFF;
         context.drawTexturedQuad(RenderPipelines.GUI_TEXTURED, texture, dstX, dstY, dstX + dstW, dstY + dstH, 0, u1, u2, v1, v2, color);
