@@ -12,8 +12,8 @@ import java.util.UUID;
 /**
  * Renders player skin heads in the locator bar.
  *
- * Uses DrawContext.drawTexturedQuad(Identifier, x1, y1, x2, y2, u1, u2, v1, v2)
- * which is a PUBLIC method confirmed in Yarn 1.21.6 docs — no RenderPipeline needed.
+ * SkinTextures is in net.minecraft.entity.player (moved in 1.21.x).
+ * Accessor: SkinTextures.texture() → Identifier (confirmed from Yarn docs).
  */
 public class PlayerHeadRenderer {
 
@@ -55,17 +55,12 @@ public class PlayerHeadRenderer {
     // ─── Skin resolution ──────────────────────────────────────────────────────
 
     private static Identifier resolveSkinId(PlayerListEntry entry) {
-        try {
-            // getSkinTextures() exists on PlayerListEntry per Yarn 1.21.11 docs.
-            // SkinTextures is net.minecraft.entity.player.SkinTextures.
-            // We use var to avoid import issues — Java infers the type at compile time.
-            var skinTextures = entry.getSkinTextures();
-            if (skinTextures == null) return DEFAULT_SKIN;
-            // Reflectively call texture() to avoid import of SkinTextures
-            var tex = skinTextures.getClass().getMethod("texture").invoke(skinTextures);
-            if (tex instanceof Identifier id) return id;
-        } catch (Exception ignored) {}
-        return DEFAULT_SKIN;
+        // SkinTextures is net.minecraft.entity.player.SkinTextures in 1.21.11
+        // getSkinTextures() returns SkinTextures; .texture() is the record accessor
+        SkinTextures skinTextures = entry.getSkinTextures();
+        if (skinTextures == null) return DEFAULT_SKIN;
+        Identifier tex = skinTextures.texture();
+        return tex != null ? tex : DEFAULT_SKIN;
     }
 
     // ─── Head rendering ───────────────────────────────────────────────────────
@@ -82,7 +77,7 @@ public class PlayerHeadRenderer {
             context.fill(x - 1, y - 1, x + size + 1, y + size + 1, borderColor);
         }
 
-        // Face layer
+        // Face base layer
         drawSkinRegion(context, skinId, x, y, size,
                 SKIN_FACE_U, SKIN_FACE_V, SKIN_FACE_SIZE, SKIN_FACE_SIZE, 64, 64);
         // Hat overlay layer
@@ -91,8 +86,9 @@ public class PlayerHeadRenderer {
     }
 
     /**
-     * Uses the public DrawContext.drawTexturedQuad(Identifier, x1, y1, x2, y2, u1, u2, v1, v2)
-     * confirmed in Yarn 1.21.6 docs. No RenderPipeline, no color arg — just Identifier + coords.
+     * Public DrawContext.drawTexturedQuad confirmed in Yarn 1.21.6 docs:
+     * drawTexturedQuad(Identifier sprite, int x1, int y1, int x2, int y2,
+     *                  float u1, float u2, float v1, float v2)
      */
     private static void drawSkinRegion(DrawContext context, Identifier texture,
                                         int dstX, int dstY, int size,
@@ -102,10 +98,6 @@ public class PlayerHeadRenderer {
         float u2 = (float) (srcX + srcW) / texW;
         float v1 = (float) srcY / texH;
         float v2 = (float) (srcY + srcH) / texH;
-
-        // Public method from Yarn 1.21.6 DrawContext:
-        // drawTexturedQuad(Identifier sprite, int x1, int y1, int x2, int y2,
-        //                  float u1, float u2, float v1, float v2)
         context.drawTexturedQuad(texture,
                 dstX, dstY, dstX + size, dstY + size,
                 u1, u2, v1, v2);
