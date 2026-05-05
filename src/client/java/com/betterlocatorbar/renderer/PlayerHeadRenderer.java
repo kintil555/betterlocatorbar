@@ -90,12 +90,17 @@ public class PlayerHeadRenderer {
                                         int dstX, int dstY, int dstW, int dstH,
                                         int srcX, int srcY, int srcW, int srcH,
                                         int texW, int texH, float alpha) {
-        int alphaInt = (int) (alpha * 255f) & 0xFF;
+        // Use normalized UV floats so the region is correctly stretched to dstW x dstH.
+        // drawTexture(RenderPipeline, Identifier, x1, y1, x2, y2, u1, u2, v1, v2) — 1.21.11
+        float u1 = (float) srcX / texW;
+        float u2 = (float) (srcX + srcW) / texW;
+        float v1 = (float) srcY / texH;
+        float v2 = (float) (srcY + srcH) / texH;
+        int alphaInt = Math.clamp((int)(alpha * 255f), 0, 255);
         int color = (alphaInt << 24) | 0x00FFFFFF;
         context.drawTexture(RenderPipelines.GUI_TEXTURED, texture,
-                dstX, dstY, dstW, dstH,
-                srcX, srcY,
-                srcW, srcH, texW, texH, color);
+                dstX, dstY, dstX + dstW, dstY + dstH,
+                u1, u2, v1, v2, color);
     }
 
     // ─── Name tag ─────────────────────────────────────────────────────────────
